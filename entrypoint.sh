@@ -9,6 +9,10 @@ export DISPLAY=:99
 fluxbox & 
 x11vnc -display :99 -localhost -nopw -forever -shared -rfbport 5900 &
 
-# Run your script
-exec python /app/copart_login.py
+# Run your script based on environment variable
+if [ "$SCRIPT" = "iaai" ]; then
+    exec python /app/iaai_login.py
+else
+    exec python /app/copart_login.py
+fi
 

@@ -21,8 +21,9 @@ RUN pip install playwright && playwright install chromium
 
 WORKDIR /app
 
-# Copy your Playwright script
+# Copy your Playwright scripts
 COPY copart_login.py /app/copart_login.py
+COPY iaai_login.py /app/iaai_login.py
 
 # Copy entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
