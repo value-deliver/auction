@@ -9,5 +9,6 @@ apt-get install -y xvfb libglib2.0-0 libnss3 libnspr4 libdbus-1-3 libatk1.0-0 li
 cd /app && \
 pip install playwright && \
 playwright install && \
+playwright install chromium && \
 xvfb-run -a python copart_login.py
 "
