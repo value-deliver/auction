@@ -10,10 +10,25 @@ import asyncio
 import json
 import random
 import os
+from pathlib import Path
+
+def load_env_file():
+    """Load environment variables from .env file if it exists"""
+    env_file = Path('.env')
+    if env_file.exists():
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
 
 async def main():
 
     print("IAAI Script started")
+
+    # Load environment variables from .env file
+    load_env_file()
 
     # Load credentials from environment variables
     USERNAME = os.environ.get('IAAI_USERNAME')
@@ -26,9 +41,11 @@ async def main():
         # Launch browser with GUI for Docker/server environments
         # Set DISPLAY for virtual framebuffer (e.g., Xvfb :99)
         os.environ.setdefault('DISPLAY', ':99')
-        browser = await p.chromium.launch(headless=False)  # Set to False for GUI mode
+        browser = await p.chromium.launch(headless=False)  # Set to True for headless mode when running locally
 
-        context = await browser.new_context()
+        context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        )
 
         page = await context.new_page()
 
@@ -38,11 +55,15 @@ async def main():
             for attempt in range(max_retries):
                 try:
                     print(f"Navigating to IAAI login page (attempt {attempt + 1}/{max_retries})...")
-                    await page.goto("http://login.iaai.com/Identity/Account/Login", timeout=60000)  # 2 minutes
+                    response = await page.goto("https://login.iaai.com/Identity/Account/Login", timeout=60000)  # 2 minutes
+                    print(f"Response status: {response.status if response else 'No response'}")
                     print("Waiting for page to load...")
-                    await page.wait_for_load_state('networkidle', timeout=60000)
+                    await page.wait_for_load_state('domcontentloaded', timeout=30000)
+                    # Wait a bit more for dynamic content
+                    await asyncio.sleep(2)
                     break  # Success, exit retry loop
                 except Exception as e:
+                    print(f"Navigation error: {e}")
                     if attempt == max_retries - 1:
                         raise e  # Last attempt failed, re-raise exception
                     print(f"Attempt {attempt + 1} failed, retrying in 5 seconds...")
@@ -85,6 +106,13 @@ async def main():
 
             # Submit the form (triggers POST request)
             await asyncio.sleep(random.uniform(3, 7))
+
+            # Debug: Check if form fields are filled
+            email_value = await page.input_value('input[name="Input.Email"]')
+            password_value = await page.input_value('input[name="Input.Password"]')
+            print(f"Email field value: '{email_value}'")
+            print(f"Password field value: '{password_value[:3] if password_value else 'empty'}***'")
+
             # Use the login button
             login_button_locator = page.locator('button[type="submit"]').first
 
@@ -130,13 +158,44 @@ async def main():
             await asyncio.sleep(random.uniform(3, 5))  # Longer pause to show hover styles
             await login_button_locator.click(timeout=random.randint(10000, 30000))
 
-            # Wait for navigation after login (e.g., redirect to dashboard)
+            # Wait for form submission and check result
             try:
-                await page.wait_for_url(lambda url: "login.iaai.com" not in url, timeout=30000)
-                print(f"Post-login page title: {await page.title()}")
-                print(f"Post-login URL: {page.url}")
+                # Wait a bit for any form processing
+                await asyncio.sleep(3)
+
+                # Check current URL
+                current_url = page.url
+                print(f"Current URL after submit: {current_url}")
+
+                # Check for error messages
+                error_selectors = [
+                    '#lblErrorMessage',
+                    '#lblEmailMessage',
+                    '#lblBuyerProfileCalims',
+                    '.alert-error',
+                    '.alert-danger'
+                ]
+
+                login_successful = True
+                for selector in error_selectors:
+                    try:
+                        error_element = page.locator(selector).first
+                        if await error_element.is_visible():
+                            error_text = await error_element.text_content()
+                            print(f"Login error found: {error_text}")
+                            login_successful = False
+                            break
+                    except:
+                        continue
+
+                if "login.iaai.com" not in current_url and login_successful:
+                    print(f"Post-login page title: {await page.title()}")
+                    print(f"Post-login URL: {current_url}")
+                else:
+                    print("Login appears to have failed or is still processing")
+
             except Exception as e:
-                print(f"Error waiting for navigation: {e}")
+                print(f"Error checking login result: {e}")
                 print(f"Current URL: {page.url}")
 
             # Check for login success
@@ -144,10 +203,16 @@ async def main():
                 print("Login successful!")
 
                 # Navigate to My Vehicles page
-                await page.goto("https://www.iaai.com/MyVehiclesNew")
-                await page.wait_for_load_state('networkidle')
-                print(f"My Vehicles page title: {await page.title()}")
-                print(f"My Vehicles URL: {page.url}")
+                try:
+                    await page.goto("https://www.iaai.com/MyVehiclesNew", timeout=30000)
+                    await page.wait_for_load_state('domcontentloaded', timeout=30000)
+                    await asyncio.sleep(2)  # Wait for dynamic content
+                    print(f"My Vehicles page title: {await page.title()}")
+                    print(f"My Vehicles URL: {page.url}")
+                except Exception as e:
+                    print(f"Could not navigate to My Vehicles page: {e}")
+                    print(f"Staying on current page: {page.url}")
+                    # Try to extract data from current page if it has vehicle data
 
                 # Extract vehicle data
                 vehicles = []
