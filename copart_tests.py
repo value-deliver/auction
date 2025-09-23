@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-Copart Watch List Tests
-This script performs automated tests for Copart watch list functionality:
-1. Search for BMW 320i 2016
-2. Open lot details and log them
-3. Add lot to watch list
-4. Check presence on watch list
-5. Remove from watch list
-6. Check absence on watch list
+Copart Today's Auctions Test
+This script performs an automated test to navigate to today's auctions and open the first auction:
+1. Login to Copart
+2. Navigate to today's auctions page
+3. Open the first auction listing
 """
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
@@ -264,9 +261,61 @@ async def remove_from_watchlist(page, lot_url):
     print("Could not find remove button")
     return False
 
+async def navigate_to_todays_auctions_and_open_first(page):
+    """Navigate to today's auctions page and open the first auction"""
+    print("Navigating to today's auctions...")
+
+    await page.goto("https://www.copart.com/todaysAuction", timeout=60000)
+    await page.wait_for_load_state('networkidle', timeout=60000)
+
+    # Wait a bit more for dynamic content
+    await asyncio.sleep(5)
+
+    # Try multiple selectors for auction links
+    selectors = [
+        'a[href*="auctionDashboard"]',
+        '.btn.btn-green.joinsearch.small',
+        'a[href*="/lot/"]',
+        '.search_result_lot_number a',
+        'a[href*="lotDetail"]',
+        'a[href*="vehicle"]',
+        '.lot-link',
+        '.auction-item a'
+    ]
+
+    first_auction = None
+    for selector in selectors:
+        try:
+            locator = page.locator(selector).first
+            if await locator.is_visible(timeout=5000):
+                first_auction = locator
+                print(f"Found auction link with selector: {selector}")
+                break
+        except:
+            continue
+
+    if first_auction:
+        href = await first_auction.get_attribute('href')
+        print(f"Opening first auction: {href}")
+        await first_auction.click()
+        await page.wait_for_load_state('networkidle', timeout=60000)
+        print("First auction opened successfully")
+        return True
+    else:
+        # Debug: print all links on the page
+        all_links = page.locator('a')
+        count = await all_links.count()
+        print(f"Total links found on page: {count}")
+        for i in range(min(10, count)):  # Print first 10 links
+            href = await all_links.nth(i).get_attribute('href')
+            text = await all_links.nth(i).text_content()
+            print(f"Link {i+1}: {text.strip()} -> {href}")
+        print("No auctions found on today's auctions page")
+        return False
+
 async def run_tests():
-    """Run all the watch list tests"""
-    print("Starting Copart Watch List Tests")
+    """Run the today's auctions test"""
+    print("Starting Copart Today's Auctions Test")
 
     async with async_playwright() as p:
         os.environ.setdefault('DISPLAY', ':99')
@@ -276,45 +325,15 @@ async def run_tests():
         page = await context.new_page()
 
         try:
-            # Test 1: Login
+            # Login
             await login_to_copart(page)
 
-            # Test 2: Search for BMW 320i 2016
-            await search_vehicle(page, "BMW 320i 2016")
-
-            # Test 3: Get first lot and open details
-            lot_url, lot_number = await get_first_lot_link(page)
-            if not lot_url or not lot_number:
-                print("No lots found in search results")
-                return
-
-            lot_details = await open_lot_details(page, lot_url)
-
-            # Test 4: Add to watch list
-            success = await add_to_watchlist(page)
-            if not success:
-                print("Failed to add to watch list")
-                return
-
-            # Test 5: Check presence on watch list
-            is_present = await check_watchlist_presence(page, lot_number)
-            if not is_present:
-                print("Lot not found in watch list after adding")
-                return
-
-            # Test 6: Remove from watch list
-            success = await remove_from_watchlist(page, lot_url)
-            if not success:
-                print("Failed to remove from watch list")
-                return
-
-            # Test 7: Check absence on watch list
-            is_present = await check_watchlist_presence(page, lot_number)
-            if is_present:
-                print("Lot still present in watch list after removal")
-                return
-
-            print("All tests passed!")
+            # Navigate to today's auctions and open first auction
+            success = await navigate_to_todays_auctions_and_open_first(page)
+            if success:
+                print("Test passed - first auction opened successfully!")
+            else:
+                print("Test failed - could not open first auction")
 
         except Exception as e:
             print(f"Test failed with error: {e}")
