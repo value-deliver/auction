@@ -64,7 +64,9 @@ class AuctionMonitor:
             await self._navigate_to_auction(auction_url)
 
             # Set up MutationObserver for real-time DOM changes
+            print('About to call _setup_mutation_observer...')
             await self._setup_mutation_observer()
+            print('_setup_mutation_observer completed')
 
             # Start monitoring loop
             await self._monitor_auction()
@@ -469,7 +471,7 @@ class AuctionMonitor:
         print('Going to auction URL...')
         await self.page.goto(auction_url, timeout=60000)
         print('Waiting for page load...')
-        await self.page.wait_for_load_state('networkidle', timeout=60000)
+        await self.page.wait_for_load_state('load', timeout=30000)
 
         print(f'Page title after navigation: {await self.page.title()}')
         print(f'Current URL: {self.page.url}')
@@ -531,6 +533,8 @@ class AuctionMonitor:
             except Exception as e:
                 print(f'Failed to take screenshot: {e}')
 
+            # Set up network monitoring for cross-origin iframe communication
+            await self._setup_network_monitoring()
             return  # Exit early if no iframe found
 
         # Check if element exists before waiting
@@ -557,8 +561,11 @@ class AuctionMonitor:
             else:
                 print(f'Found {count} auction elements')
 
+        # Set up network monitoring for auction data
+        await self._setup_network_monitoring()
+
     async def _monitor_auction(self):
-        """Main monitoring loop with MutationObserver for real-time updates"""
+        """Main monitoring loop with MutationObserver and network monitoring for real-time updates"""
         print('Starting auction monitoring...')
 
         # Initial data extraction
@@ -584,9 +591,28 @@ class AuctionMonitor:
                     self.last_update = datetime.now().isoformat()
                     print(f"Health check update: Bid={auction_data['current_bid']}, Time={auction_data['time_remaining']}")
 
+                    # Check for recent network activity
+                    await self._check_recent_network_activity()
+
             except Exception as e:
                 print(f'Monitoring error: {str(e)}')
                 await asyncio.sleep(5)
+
+    async def _check_recent_network_activity(self):
+        """Check for recent network activity that might indicate auction updates"""
+        try:
+            if hasattr(self, 'websocket_messages') and self.websocket_messages:
+                # Check for messages in the last 30 seconds
+                recent_messages = [msg for msg in self.websocket_messages
+                                 if (datetime.now() - datetime.fromisoformat(msg['timestamp'])).seconds < 30]
+
+                if recent_messages:
+                    print(f"Found {len(recent_messages)} recent WebSocket messages")
+                    for msg in recent_messages[-3:]:  # Show last 3 messages
+                        print(f"Recent WS: {msg['url']} - {str(msg['data'])[:100]}...")
+
+        except Exception as e:
+            print(f"Error checking recent network activity: {e}")
 
     async def _extract_auction_data(self):
         """Extract current auction data from the page"""
@@ -606,37 +632,131 @@ class AuctionMonitor:
                 print("Page is closed, returning default data")
                 return data
 
-            # Use auction frame if available, otherwise main page
-            target = self.auction_frame if self.auction_frame else self.page
-
             # Extract auction ID from URL or page
             url = self.page.url
             if 'auctionDetails=' in url:
                 data['auction_id'] = url.split('auctionDetails=')[1].split('&')[0]
 
-            # Current bid
-            bid_selectors = ['.current-bid', '.bid-amount', '.bid-price', '[data-uname*="bid"]', 'input[name="bidAmount"]']
-            for selector in bid_selectors:
+            # Check for auction status indicators on main page
+            await self._check_main_page_auction_status(data)
+
+            # Try to extract data from iframe if accessible
+            if self.auction_frame:
                 try:
-                    bid_elem = target.locator(selector).first
-                    if await bid_elem.is_visible(timeout=1000):
-                        if selector == 'input[name="bidAmount"]':
-                            value = await bid_elem.get_attribute('value')
-                            if value:
-                                data['current_bid'] = value
-                            else:
-                                data['current_bid'] = await bid_elem.text_content()
-                        else:
-                            data['current_bid'] = await bid_elem.text_content()
-                        print(f"Found bid with selector {selector}: {data['current_bid']}")
-                        break
-                    else:
-                        print(f"Bid selector {selector} not visible")
+                    await self._extract_data_from_iframe(data)
                 except Exception as e:
-                    print(f"Error with bid selector {selector}: {e}")
+                    print(f"Could not extract data from iframe: {e}")
+
+            # Check network activity for auction data
+            await self._check_network_auction_data(data)
+
+        except Exception as e:
+            print(f"Error extracting auction data: {e}")
+
+        return data
+
+    async def _check_main_page_auction_status(self, data):
+        """Check main page for auction status indicators"""
+        try:
+            # Look for auction status messages on main page
+            status_indicators = [
+                'text="auction is live"',
+                'text="auction in progress"',
+                'text="bidding is open"',
+                'text="auction running"',
+                '.auction-status',
+                '.live-auction'
+            ]
+
+            for indicator in status_indicators:
+                try:
+                    if indicator.startswith('text='):
+                        elements = self.page.locator(indicator)
+                    else:
+                        elements = self.page.locator(indicator)
+
+                    count = await elements.count()
+                    if count > 0:
+                        data['status'] = 'active'
+                        print(f"Found auction status indicator: {indicator}")
+                        break
+                except:
                     continue
 
-            # Current bidder
+            # Check for "auction ended" or similar
+            ended_indicators = [
+                'text="auction has ended"',
+                'text="auction closed"',
+                'text="bidding closed"'
+            ]
+
+            for indicator in ended_indicators:
+                try:
+                    elements = self.page.locator(indicator)
+                    count = await elements.count()
+                    if count > 0:
+                        data['status'] = 'ended'
+                        print(f"Found auction ended indicator: {indicator}")
+                        break
+                except:
+                    continue
+
+        except Exception as e:
+            print(f"Error checking main page auction status: {e}")
+
+    async def _extract_data_from_iframe(self, data):
+        """Extract auction data from iframe if accessible"""
+        target = self.auction_frame
+
+        # Current bid - look for SVG text elements in auctionrunningdiv-MACRO
+        try:
+            # First try the SVG text elements from the HTML structure
+            bid_text_elem = target.locator('.auctionrunningdiv-MACRO text[fill="#0757ac"]').first
+            if await bid_text_elem.is_visible(timeout=1000):
+                bid_text = await bid_text_elem.text_content()
+                if bid_text and bid_text.strip():
+                    data['current_bid'] = bid_text.strip()
+                    print(f"Found bid in SVG text: {data['current_bid']}")
+            else:
+                # Fallback to other selectors
+                bid_selectors = ['.current-bid', '.bid-amount', '.bid-price', '[data-uname*="bid"]', 'input[name="bidAmount"]']
+                for selector in bid_selectors:
+                    try:
+                        bid_elem = target.locator(selector).first
+                        if await bid_elem.is_visible(timeout=1000):
+                            if selector == 'input[name="bidAmount"]':
+                                value = await bid_elem.get_attribute('value')
+                                if value:
+                                    data['current_bid'] = value
+                                else:
+                                    data['current_bid'] = await bid_elem.text_content()
+                            else:
+                                data['current_bid'] = await bid_elem.text_content()
+                            print(f"Found bid with selector {selector}: {data['current_bid']}")
+                            break
+                        else:
+                            print(f"Bid selector {selector} not visible")
+                    except Exception as e:
+                        print(f"Error with bid selector {selector}: {e}")
+                        continue
+        except Exception as e:
+            print(f"Error extracting bid from iframe: {e}")
+
+        # Current bidder - look for SVG text elements in auctionrunningdiv-MACRO
+        try:
+            # Look for black text elements in the auction div (excluding "Bid!")
+            bidder_texts = target.locator('.auctionrunningdiv-MACRO text[fill="black"]')
+            bidder_count = await bidder_texts.count()
+            for i in range(bidder_count):
+                bidder_text = await bidder_texts.nth(i).text_content()
+                bidder_text = bidder_text.strip()
+                if bidder_text and bidder_text != 'Bid!' and not bidder_text.startswith('$'):
+                    data['current_bidder'] = bidder_text
+                    print(f"Found bidder in SVG text: {data['current_bidder']}")
+                    break
+        except Exception as e:
+            print(f"Error extracting bidder from iframe: {e}")
+            # Fallback to other selectors
             bidder_selectors = ['.current-bidder', '.bidder-name', '.winning-bidder']
             for selector in bidder_selectors:
                 try:
@@ -651,100 +771,144 @@ class AuctionMonitor:
                     print(f"Error with bidder selector {selector}: {e}")
                     continue
 
-            # Time remaining - look for countdown timers and circular progress
-            time_selectors = [
-                '.time-remaining', '.countdown', '.time-left', '[data-uname*="time"]',
-                '.countdown-timer', '.auction-timer', '.time-display',
-                '[class*="countdown"]', '[class*="timer"]'
-            ]
-            for selector in time_selectors:
-                try:
-                    time_elem = target.locator(selector).first
-                    if await time_elem.is_visible(timeout=1000):
-                        time_text = await time_elem.text_content()
-                        if time_text and time_text.strip():
-                            data['time_remaining'] = time_text.strip()
-                            print(f"Found time with selector {selector}: {data['time_remaining']}")
-                            break
-                    else:
-                        print(f"Time selector {selector} not visible")
-                except Exception as e:
-                    print(f"Error with time selector {selector}: {e}")
-                    continue
-
-            # Also check for circular progress indicators (SVG circles)
+        # Time remaining - look for countdown timers and circular progress
+        time_selectors = [
+            '.time-remaining', '.countdown', '.time-left', '[data-uname*="time"]',
+            '.countdown-timer', '.auction-timer', '.time-display',
+            '[class*="countdown"]', '[class*="timer"]'
+        ]
+        for selector in time_selectors:
             try:
-                # Look for SVG circles that might represent countdown timers
-                circles = self.page.locator('circle')
-                circle_count = await circles.count()
-                for i in range(circle_count):
-                    circle = circles.nth(i)
-                    # Check if this circle has countdown-related attributes
-                    cx = await circle.get_attribute('cx')
-                    cy = await circle.get_attribute('cy')
-                    r = await circle.get_attribute('r')
-                    if cx and cy and r:  # This looks like a countdown circle
-                        # Try to find associated text
-                        parent = circle.locator('xpath=ancestor::*[contains(@class, "countdown") or contains(@class, "timer")]').first
-                        if await parent.is_visible(timeout=500):
-                            countdown_text = await parent.text_content()
-                            if countdown_text and 'time' in countdown_text.lower():
-                                data['time_remaining'] = countdown_text.strip()
-                                break
-            except:
-                pass
-
-            # Active bidders count
-            bidders_selectors = ['.active-bidders', '.bidder-count', '.bidders-online']
-            for selector in bidders_selectors:
-                try:
-                    bidders_elem = target.locator(selector).first
-                    if await bidders_elem.is_visible(timeout=1000):
-                        bidders_text = await bidders_elem.text_content()
-                        # Extract number from text
-                        import re
-                        numbers = re.findall(r'\d+', bidders_text)
-                        if numbers:
-                            data['active_bidders'] = int(numbers[0])
-                            print(f"Found bidders with selector {selector}: {data['active_bidders']}")
+                time_elem = target.locator(selector).first
+                if await time_elem.is_visible(timeout=1000):
+                    time_text = await time_elem.text_content()
+                    if time_text and time_text.strip():
+                        data['time_remaining'] = time_text.strip()
+                        print(f"Found time with selector {selector}: {data['time_remaining']}")
                         break
-                    else:
-                        print(f"Bidders selector {selector} not visible")
-                except Exception as e:
-                    print(f"Error with bidders selector {selector}: {e}")
-                    continue
+                else:
+                    print(f"Time selector {selector} not visible")
+            except Exception as e:
+                print(f"Error with time selector {selector}: {e}")
+                continue
 
-            # Auction status
-            status_selectors = ['.auction-status', '.status', '.auction-state']
-            for selector in status_selectors:
-                try:
-                    status_elem = target.locator(selector).first
-                    if await status_elem.is_visible(timeout=1000):
-                        status_text = await status_elem.text_content()
-                        if 'active' in status_text.lower() or 'running' in status_text.lower():
-                            data['status'] = 'active'
-                        elif 'ended' in status_text.lower() or 'finished' in status_text.lower():
-                            data['status'] = 'ended'
-                        elif 'paused' in status_text.lower():
-                            data['status'] = 'paused'
-                        print(f"Found status with selector {selector}: {data['status']}")
-                        break
-                    else:
-                        print(f"Status selector {selector} not visible")
-                except Exception as e:
-                    print(f"Error with status selector {selector}: {e}")
-                    continue
+        # Active bidders count
+        bidders_selectors = ['.active-bidders', '.bidder-count', '.bidders-online']
+        for selector in bidders_selectors:
+            try:
+                bidders_elem = target.locator(selector).first
+                if await bidders_elem.is_visible(timeout=1000):
+                    bidders_text = await bidders_elem.text_content()
+                    # Extract number from text
+                    import re
+                    numbers = re.findall(r'\d+', bidders_text)
+                    if numbers:
+                        data['active_bidders'] = int(numbers[0])
+                        print(f"Found bidders with selector {selector}: {data['active_bidders']}")
+                    break
+                else:
+                    print(f"Bidders selector {selector} not visible")
+            except Exception as e:
+                print(f"Error with bidders selector {selector}: {e}")
+                continue
+
+    async def _check_network_auction_data(self, data):
+        """Check recent network activity for auction data"""
+        try:
+            # Check recent WebSocket messages for auction data
+            if hasattr(self, 'websocket_messages') and self.websocket_messages:
+                recent_messages = [msg for msg in self.websocket_messages
+                                 if (datetime.now() - datetime.fromisoformat(msg['timestamp'])).seconds < 30]
+
+                for msg in recent_messages:
+                    try:
+                        msg_data = msg['data']
+                        if isinstance(msg_data, str):
+                            msg_json = json.loads(msg_data)
+                        else:
+                            msg_json = msg_data
+
+                        # Look for auction data in message
+                        if 'bid' in str(msg_json).lower():
+                            print(f"Found auction data in WebSocket: {msg_json}")
+                            # Extract relevant data
+                            if 'currentBid' in msg_json:
+                                data['current_bid'] = str(msg_json['currentBid'])
+                            if 'currentBidder' in msg_json:
+                                data['current_bidder'] = str(msg_json['currentBidder'])
+                            if 'timeRemaining' in msg_json:
+                                data['time_remaining'] = str(msg_json['timeRemaining'])
+                            if 'status' in msg_json:
+                                data['status'] = str(msg_json['status'])
+
+                    except:
+                        continue
 
         except Exception as e:
-            print(f"Error extracting auction data: {e}")
+            print(f"Error checking network auction data: {e}")
 
-        return data
+    async def _setup_network_monitoring(self):
+        """Set up network monitoring to capture auction data from WebSocket/API calls"""
+        try:
+            print('Setting up network monitoring for auction data...')
+
+            # Monitor WebSocket connections
+            self.websocket_messages = []
+
+            def handle_websocket_message(msg):
+                try:
+                    if 'g2auction.copart.com' in msg.url or 'auction' in msg.url.lower():
+                        print(f'WebSocket message from {msg.url}: {msg}')
+                        self.websocket_messages.append({
+                            'url': msg.url,
+                            'data': msg,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                except:
+                    pass
+
+            # Monitor network requests to auction domains
+            def handle_request(request):
+                try:
+                    url = request.url
+                    if 'g2auction.copart.com' in url or ('auction' in url.lower() and 'copart' in url.lower()):
+                        print(f'Auction API request: {request.method} {url}')
+                        if request.post_data:
+                            print(f'Request data: {request.post_data}')
+                except:
+                    pass
+
+            def handle_response(response):
+                try:
+                    url = response.url
+                    if 'g2auction.copart.com' in url or ('auction' in url.lower() and 'copart' in url.lower()):
+                        print(f'Auction API response: {response.status} {url}')
+                        # Try to get response body for auction data
+                        try:
+                            content = response.text()
+                            if content and ('bid' in content.lower() or 'auction' in content.lower()):
+                                print(f'Response content: {content[:500]}...')
+                        except:
+                            pass
+                except:
+                    pass
+
+            # Set up request/response monitoring on context to capture iframe requests
+            self.context.on('request', handle_request)
+            self.context.on('response', handle_response)
+
+            print('Network monitoring setup complete')
+            logging.info('Network monitoring setup complete - monitoring for auction API calls')
+
+        except Exception as e:
+            print(f'Failed to set up network monitoring: {e}')
 
     async def _setup_mutation_observer(self):
-        """Set up MutationObserver to detect real-time DOM changes in auctionrunningdiv-MACRO"""
+        """Set up MutationObserver to detect real-time DOM changes, specifically bid changes"""
         try:
+            print('_setup_mutation_observer: Checking auction frame...')
             if not self.auction_frame:
-                print('No auction frame found, skipping observer setup')
+                print('_setup_mutation_observer: No auction frame found, skipping observer setup')
                 return
 
             # Wait for auction content to load
@@ -756,110 +920,220 @@ class AuctionMonitor:
                 print(f'Auction content not loaded within 30 seconds: {e}')
                 print('Proceeding with observer setup anyway...')
 
-            # JavaScript code to set up MutationObserver
+            # JavaScript code to set up MutationObserver for auctionrunningdiv-MACRO content changes
             observer_js = """
             (function() {
-                // Function to extract current auction data
-                function extractAuctionData() {
-                    const data = {
-                        current_bid: 'N/A',
-                        current_bidder: 'N/A',
-                        time_remaining: 'N/A',
-                        status: 'unknown'
-                    };
+                console.log('Setting up auction content observer...');
 
-                    // Extract bid from auctionrunningdiv-MACRO
+                let lastContent = null;
+                let mutationCount = 0;
+
+                // Function to get current content of auctionrunningdiv-MACRO
+                function getAuctionContent() {
                     const auctionDiv = document.querySelector('.auctionrunningdiv-MACRO');
                     if (auctionDiv) {
-                        // Extract bid amount from SVG text
-                        const bidText = auctionDiv.querySelector('text[fill="#0757ac"]');
-                        if (bidText) {
-                            data.current_bid = bidText.textContent.trim();
-                        }
+                        // Get all text content from the div
+                        const allText = auctionDiv.textContent || '';
+                        // Get HTML structure
+                        const htmlContent = auctionDiv.innerHTML || '';
+                        // Get specific bid elements
+                        const bidElements = auctionDiv.querySelectorAll('text[fill="#0757ac"]');
+                        const bidderElements = auctionDiv.querySelectorAll('text[fill="black"]');
 
-                        // Extract bidder/location from SVG text
-                        const bidderTexts = auctionDiv.querySelectorAll('text[fill="black"]');
-                        bidderTexts.forEach(text => {
-                            const content = text.textContent.trim();
-                            if (content && content !== 'Bid!' && !content.includes('$')) {
-                                data.current_bidder = content;
-                            }
-                        });
+                        const bidTexts = Array.from(bidElements).map(el => el.textContent.trim()).filter(text => text);
+                        const bidderTexts = Array.from(bidderElements).map(el => el.textContent.trim()).filter(text => text && text !== 'Bid!');
+
+                        return {
+                            textContent: allText.trim(),
+                            htmlContent: htmlContent,
+                            bidElements: bidTexts,
+                            bidderElements: bidderTexts,
+                            timestamp: new Date().toISOString()
+                        };
                     }
-
-                    // Extract time remaining from various possible locations
-                    const timeSelectors = [
-                        '.time-remaining', '.countdown', '.time-left', '[data-uname*="time"]',
-                        '.countdown-timer', '.auction-timer', '.time-display',
-                        '[class*="countdown"]', '[class*="timer"]'
-                    ];
-
-                    for (const selector of timeSelectors) {
-                        const elem = document.querySelector(selector);
-                        if (elem && elem.textContent && elem.textContent.trim()) {
-                            data.time_remaining = elem.textContent.trim();
-                            break;
-                        }
-                    }
-
-                    return data;
+                    return null;
                 }
 
-                // Set up MutationObserver
+                // Set up MutationObserver for the entire auction div
                 const targetNode = document.querySelector('.auctionrunningdiv-MACRO');
                 if (targetNode) {
-                    const observer = new MutationObserver(function(mutations) {
-                        let shouldUpdate = false;
+                    console.log('Found .auctionrunningdiv-MACRO, setting up observer');
 
+                    const observer = new MutationObserver(function(mutations) {
+                        mutationCount++;
+                        console.log('Mutation detected #' + mutationCount + ', mutations: ' + mutations.length);
+
+                        // Check if any mutation is relevant (content changes)
+                        let hasContentChange = false;
                         mutations.forEach(function(mutation) {
-                            // Check if the mutation affects text content or attributes
-                            if (mutation.type === 'childList' || mutation.type === 'characterData' ||
-                                (mutation.type === 'attributes' && mutation.attributeName === 'value')) {
-                                shouldUpdate = true;
+                            console.log('Mutation type: ' + mutation.type + ', target: ' + mutation.target.tagName);
+                            if (mutation.type === 'childList' ||
+                                mutation.type === 'characterData' ||
+                                (mutation.type === 'attributes' && ['class', 'style', 'fill'].includes(mutation.attributeName))) {
+                                hasContentChange = true;
                             }
                         });
 
-                        if (shouldUpdate) {
-                            const newData = extractAuctionData();
-                            // Send data back to Python via console.log (captured by Playwright)
-                            console.log('AUCTION_UPDATE:' + JSON.stringify(newData));
+                        if (hasContentChange) {
+                            console.log('Content change detected, getting auction content...');
+                            const content = getAuctionContent();
+                            if (content) {
+                                const contentStr = JSON.stringify(content);
+                                // Only log if content actually changed
+                                if (contentStr !== lastContent) {
+                                    console.log('AUCTION_CONTENT_CHANGE:' + contentStr);
+                                    lastContent = contentStr;
+                                } else {
+                                    console.log('Content unchanged, skipping log');
+                                }
+                            } else {
+                                console.log('No content retrieved from auction div');
+                            }
+                        } else {
+                            console.log('No relevant content changes in this mutation batch');
                         }
                     });
 
-                    // Start observing
                     observer.observe(targetNode, {
                         childList: true,
                         subtree: true,
                         characterData: true,
                         attributes: true,
-                        attributeFilter: ['value']
+                        attributeFilter: ['class', 'style', 'fill', 'x', 'y', 'text-anchor']
                     });
 
-                    console.log('MutationObserver set up for auctionrunningdiv-MACRO');
+                    console.log('Auction content observer set up successfully for .auctionrunningdiv-MACRO');
+
+                    // Test the observer with initial content
+                    setTimeout(function() {
+                        console.log('Testing observer with initial content...');
+                        const initialContent = getAuctionContent();
+                        if (initialContent) {
+                            console.log('Initial content: ' + JSON.stringify(initialContent).substring(0, 200) + '...');
+                        } else {
+                            console.log('No initial content found');
+                        }
+                    }, 1000);
+
                 } else {
                     console.log('auctionrunningdiv-MACRO not found, MutationObserver not set up');
+                    // List all elements to debug
+                    const allDivs = document.querySelectorAll('div');
+                    console.log('Found ' + allDivs.length + ' div elements');
+                    allDivs.forEach(function(div, index) {
+                        if (div.className && div.className.includes('auction')) {
+                            console.log('Auction-related div #' + index + ': ' + div.className);
+                        }
+                    });
                 }
             })();
             """
 
             # Inject the JavaScript into the iframe
-            await self.auction_frame.evaluate(observer_js)
+            # Try using FrameLocator's evaluate method (available in newer Playwright versions)
+            try:
+                await self.auction_frame.evaluate(observer_js)
+                print('Successfully injected JavaScript into iframe')
+            except AttributeError:
+                print('FrameLocator.evaluate not available, trying alternative method')
+                # Alternative: use page.evaluate to target the iframe
+                try:
+                    # Find the iframe and execute script in its context
+                    frames = self.page.frames
+                    target_frame = None
+                    for frame in frames:
+                        if 'g2auction.copart.com' in frame.url:
+                            target_frame = frame
+                            break
+
+                    if target_frame:
+                        await target_frame.evaluate(observer_js)
+                        print('Successfully injected JavaScript into iframe via frame reference')
+                    else:
+                        print('Could not find target frame for JavaScript injection')
+                except Exception as e:
+                    print(f'Failed to inject JavaScript into iframe: {e}')
+            except Exception as e:
+                print(f'JavaScript injection failed: {e}')
 
             # Set up console message listener to capture updates
             self.page.on('console', self._handle_console_message)
 
-            print('MutationObserver setup complete')
-            logging.info('MutationObserver setup complete - monitoring for real-time updates')
+            print('Bid change observer setup complete')
+            logging.info('Bid change observer setup complete - monitoring for bid changes')
 
         except Exception as e:
-            print(f'Failed to set up MutationObserver: {e}')
+            print(f'Failed to set up bid change observer: {e}')
 
     def _handle_console_message(self, msg):
         """Handle console messages from the page, including MutationObserver updates"""
         try:
             text = msg.text
-            if text.startswith('AUCTION_UPDATE:'):
-                # Parse the auction data update
+            if text.startswith('AUCTION_CONTENT_CHANGE:'):
+                # Parse the auction content change
+                json_data = text[23:]  # Remove 'AUCTION_CONTENT_CHANGE:' prefix
+                content_data = json.loads(json_data)
+
+                # Extract bid and bidder info
+                current_bid = 'N/A'
+                current_bidder = 'N/A'
+
+                if content_data.get('bidElements') and len(content_data['bidElements']) > 0:
+                    current_bid = content_data['bidElements'][0]  # Take first bid element
+
+                if content_data.get('bidderElements') and len(content_data['bidderElements']) > 0:
+                    current_bidder = content_data['bidderElements'][0]  # Take first bidder element
+
+                # Update current data
+                self.current_auction_data.update({
+                    'current_bid': current_bid,
+                    'current_bidder': current_bidder
+                })
+                self.last_update = datetime.now().isoformat()
+
+                # Print content change notification
+                print(f"🔄 AUCTION CONTENT CHANGE at {content_data.get('timestamp', 'N/A')}")
+                print(f"   💰 Bid: {current_bid}")
+                print(f"   👤 Bidder: {current_bidder}")
+                print(f"   📄 All text: {content_data.get('textContent', '')[:200]}...")
+
+                # Show bid elements if present
+                if content_data.get('bidElements') and len(content_data['bidElements']) > 0:
+                    print(f"   🎯 Bid elements: {content_data['bidElements']}")
+
+                # Show bidder elements if present
+                if content_data.get('bidderElements') and len(content_data['bidderElements']) > 0:
+                    print(f"   🏷️  Bidder elements: {content_data['bidderElements']}")
+
+            elif text.startswith('BID_CHANGE:'):
+                # Parse the bid change update (legacy)
+                json_data = text[11:]  # Remove 'BID_CHANGE:' prefix
+                bid_data = json.loads(json_data)
+
+                # Update current data
+                self.current_auction_data.update({
+                    'current_bid': bid_data.get('current_bid', 'N/A'),
+                    'current_bidder': bid_data.get('current_bidder', 'N/A')
+                })
+                self.last_update = datetime.now().isoformat()
+
+                # Print bid change notification
+                flag_info = ""
+                if bid_data.get('bid_flags') and len(bid_data['bid_flags']) > 0:
+                    flag_info = f", Flags: {len(bid_data['bid_flags'])} active"
+
+                flag_change_indicator = ""
+                if bid_data.get('flag_change'):
+                    flag_change_indicator = " 🎯 FLAG CHANGE"
+
+                print(f"🚨 BID CHANGE DETECTED{flag_change_indicator}: Bid={bid_data.get('current_bid', 'N/A')}, Bidder={bid_data.get('current_bidder', 'N/A')}{flag_info} at {bid_data.get('timestamp', 'N/A')}")
+
+                # Log detailed flag information if flags are present
+                if bid_data.get('bid_flags') and len(bid_data['bid_flags']) > 0:
+                    print(f"   📍 Bid flags detected: {bid_data['bid_flags']}")
+
+            elif text.startswith('AUCTION_UPDATE:'):
+                # Parse the general auction data update (fallback)
                 json_data = text[15:]  # Remove 'AUCTION_UPDATE:' prefix
                 auction_data = json.loads(json_data)
 
