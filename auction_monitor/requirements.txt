@@ -4,3 +4,4 @@ playwright==1.40.0
 eventlet==0.33.3
 python-socketio==5.8.0
 python-engineio==4.7.1
+requests==2.31.0

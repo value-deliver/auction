@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import base64
 import time
+import requests
 
 def load_env_file():
     """Load environment variables from .env file if it exists"""
@@ -74,14 +75,74 @@ async def detect_incapsula_block(page):
         print(f"Error detecting Incapsula block: {e}")
         return False
 
+async def detect_incapsula_captcha(page):
+    """Detect Incapsula CAPTCHA iframes specifically"""
+    try:
+        print("Checking for Incapsula CAPTCHA iframes...")
+
+        # Incapsula-specific CAPTCHA iframe selectors
+        incapsula_captcha_selectors = [
+            'iframe[src*="incapsula"]',
+            'iframe[id*="incapsula"]',
+            'iframe[src*="challenge"]',
+            'iframe[src*="captcha"]',
+            'iframe[src*="recaptcha"]',
+            'iframe[src*="hcaptcha"]',
+            '.incapsula-challenge',
+            '#incapsula-iframe',
+            'iframe[title*="challenge"]',
+            'iframe[title*="captcha"]'
+        ]
+
+        for selector in incapsula_captcha_selectors:
+            try:
+                iframe = page.locator(selector).first
+                if await iframe.is_visible(timeout=2000):
+                    src = await iframe.get_attribute('src')
+                    print(f"Incapsula CAPTCHA iframe found: {selector}")
+                    if src:
+                        print(f"CAPTCHA iframe src: {src}")
+                    return True
+            except:
+                continue
+
+        # Check for Incapsula CAPTCHA text indicators
+        page_text = await page.inner_text('body')
+        incapsula_captcha_indicators = [
+            "checking your browser",
+            "please wait while we are checking",
+            "security check in progress",
+            "verifying your connection",
+            "please complete the security check",
+            "incapsula",
+            "imperva"
+        ]
+
+        page_text_lower = page_text.lower()
+        for indicator in incapsula_captcha_indicators:
+            if indicator in page_text_lower:
+                print(f"Incapsula CAPTCHA text detected: '{indicator}'")
+                return True
+
+        return False
+
+    except Exception as e:
+        print(f"Error detecting Incapsula CAPTCHA: {e}")
+        return False
+
 async def detect_captcha(page):
     """Detect if a CAPTCHA is present on the page"""
     try:
         print("Scanning page for CAPTCHA elements...")
 
         # First check for Incapsula blocks (more serious than CAPTCHAs)
-        if await detect_incapsula_block(page):
-            print("Incapsula WAF block detected - this is more serious than a CAPTCHA!")
+        incapsula_detected = await detect_incapsula_block(page)
+        if incapsula_detected:
+            print("Incapsula WAF block detected - checking for Incapsula CAPTCHA iframes...")
+            # Check for Incapsula-specific CAPTCHA iframes
+            incapsula_captcha_found = await detect_incapsula_captcha(page)
+            if incapsula_captcha_found:
+                return "incapsula_captcha"
             return "incapsula_block"
 
         # Common CAPTCHA selectors
@@ -189,7 +250,7 @@ async def detect_captcha(page):
         print(f"Error detecting CAPTCHA: {e}")
         return False
 
-async def solve_captcha(page):
+async def solve_captcha(page, captcha_type="standard"):
     """Attempt to solve CAPTCHA using 2Captcha service"""
     try:
         # Get CAPTCHA solving API key from environment
@@ -199,6 +260,20 @@ async def solve_captcha(page):
             print("Get API key from: https://2captcha.com/")
             return False
 
+        if captcha_type == "incapsula_captcha":
+            print("Attempting to solve Incapsula CAPTCHA...")
+            return await solve_incapsula_captcha(page, api_key)
+        else:
+            print("Attempting to solve standard CAPTCHA...")
+            return await solve_standard_captcha(page, api_key)
+
+    except Exception as e:
+        print(f"Error solving CAPTCHA: {e}")
+        return False
+
+async def solve_standard_captcha(page, api_key):
+    """Solve standard CAPTCHA types"""
+    try:
         print("Attempting to solve image-based CAPTCHA...")
 
         # Try different CAPTCHA selectors
@@ -265,9 +340,6 @@ async def solve_captcha(page):
         # Determine CAPTCHA type and send to 2Captcha
         print("Sending CAPTCHA to 2Captcha service...")
 
-        # For now, implement a basic Grid CAPTCHA solver
-        # In production, you'd want more sophisticated logic for different CAPTCHA types
-
         success = await solve_grid_captcha(page, captcha_element, task_text, captcha_base64, api_key)
 
         if success:
@@ -278,32 +350,350 @@ async def solve_captcha(page):
             return False
 
     except Exception as e:
-        print(f"Error solving CAPTCHA: {e}")
+        print(f"Error solving standard CAPTCHA: {e}")
+        return False
+
+async def solve_incapsula_captcha(page, api_key):
+    """Solve Incapsula-specific CAPTCHAs"""
+    try:
+        print("Solving Incapsula CAPTCHA...")
+
+        # First, try to detect if it's a reCAPTCHA or hCaptcha within Incapsula iframe
+        captcha_info = await detect_captcha_in_iframe(page)
+
+        if captcha_info:
+            captcha_type, site_key, iframe_url = captcha_info
+            print(f"Detected {captcha_type} in Incapsula iframe")
+
+            if captcha_type in ['recaptcha', 'hcaptcha']:
+                return await solve_recaptcha_captcha(page, api_key, site_key, iframe_url, captcha_type)
+            else:
+                print(f"Unsupported Incapsula CAPTCHA type: {captcha_type}")
+                return False
+        else:
+            # Fallback: try to solve as image-based CAPTCHA
+            print("No recognizable CAPTCHA type found in iframe, trying image-based solving...")
+            return await solve_incapsula_image_captcha(page, api_key)
+
+    except Exception as e:
+        print(f"Error solving Incapsula CAPTCHA: {e}")
+        return False
+
+async def detect_captcha_in_iframe(page):
+    """Detect CAPTCHA type within Incapsula iframe"""
+    try:
+        # Find Incapsula iframe
+        iframe_selectors = [
+            'iframe[src*="incapsula"]',
+            'iframe[id*="incapsula"]',
+            'iframe[src*="challenge"]',
+            'iframe[src*="captcha"]'
+        ]
+
+        iframe_element = None
+        iframe_url = None
+
+        for selector in iframe_selectors:
+            try:
+                iframe = page.locator(selector).first
+                if await iframe.is_visible(timeout=2000):
+                    iframe_element = iframe
+                    iframe_url = await iframe.get_attribute('src')
+                    print(f"Found Incapsula iframe: {iframe_url}")
+                    break
+            except:
+                continue
+
+        if not iframe_element:
+            return None
+
+        # Try to detect reCAPTCHA
+        try:
+            recaptcha_element = page.locator('.g-recaptcha, [data-sitekey]').first
+            if await recaptcha_element.is_visible(timeout=1000):
+                site_key = await recaptcha_element.get_attribute('data-sitekey')
+                if site_key:
+                    return ('recaptcha', site_key, iframe_url)
+        except:
+            pass
+
+        # Try to detect hCaptcha
+        try:
+            hcaptcha_element = page.locator('.h-captcha, [data-sitekey]').first
+            if await hcaptcha_element.is_visible(timeout=1000):
+                site_key = await hcaptcha_element.get_attribute('data-sitekey')
+                if site_key:
+                    return ('hcaptcha', site_key, iframe_url)
+        except:
+            pass
+
+        return None
+
+    except Exception as e:
+        print(f"Error detecting CAPTCHA in iframe: {e}")
+        return None
+
+async def solve_recaptcha_captcha(page, api_key, site_key, page_url, captcha_type):
+    """Solve reCAPTCHA or hCaptcha using 2Captcha"""
+    try:
+        print(f"Solving {captcha_type} with site key: {site_key}")
+
+        # Submit to 2Captcha
+        submit_url = "http://2captcha.com/in.php"
+        submit_data = {
+            'key': api_key,
+            'method': 'userrecaptcha' if captcha_type == 'recaptcha' else 'hcaptcha',
+            'sitekey': site_key,
+            'pageurl': page_url or page.url,
+            'json': 1
+        }
+
+        submit_response = requests.post(submit_url, data=submit_data, timeout=30)
+        submit_result = submit_response.json()
+
+        if submit_result.get('status') != 1:
+            print(f"Failed to submit {captcha_type}: {submit_result}")
+            return False
+
+        task_id = submit_result['request']
+        print(f"{captcha_type} submitted successfully. Task ID: {task_id}")
+
+        # Poll for result
+        result_url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={task_id}&json=1"
+        max_attempts = 60
+
+        for attempt in range(max_attempts):
+            try:
+                result_response = requests.get(result_url, timeout=10)
+                result_data = result_response.json()
+
+                if result_data.get('status') == 1:
+                    token = result_data['request']
+                    print(f"{captcha_type} solved! Token: {token[:50]}...")
+
+                    # Inject the token into the page
+                    if captcha_type == 'recaptcha':
+                        await page.evaluate(f"""
+                            document.querySelector('[name="g-recaptcha-response"]').value = '{token}';
+                            if (window.grecaptcha) {{
+                                grecaptcha.getResponse = function() {{ return '{token}'; }};
+                            }}
+                        """)
+                    else:  # hcaptcha
+                        await page.evaluate(f"""
+                            document.querySelector('[name="h-captcha-response"]').value = '{token}';
+                            if (window.hcaptcha) {{
+                                hcaptcha.getResponse = function() {{ return '{token}'; }};
+                            }}
+                        """)
+
+                    # Try to submit the form
+                    submit_selectors = [
+                        'button[type="submit"]',
+                        '.captcha-submit',
+                        'input[type="submit"]',
+                        'button[id*="submit"]'
+                    ]
+
+                    for selector in submit_selectors:
+                        try:
+                            submit_btn = page.locator(selector).first
+                            if await submit_btn.is_visible(timeout=2000):
+                                await submit_btn.click()
+                                print(f"Submitted {captcha_type} solution")
+                                await asyncio.sleep(3)  # Wait for processing
+                                return True
+                        except:
+                            continue
+
+                    print(f"Could not find submit button for {captcha_type}")
+                    return False
+
+                elif result_data.get('request') == 'CAPCHA_NOT_READY':
+                    print(f"{captcha_type} not ready yet, waiting... (attempt {attempt + 1}/{max_attempts})")
+                    await asyncio.sleep(1)
+                    continue
+
+                else:
+                    print(f"{captcha_type} solving failed: {result_data}")
+                    return False
+
+            except Exception as e:
+                print(f"Error polling {captcha_type} result: {e}")
+                await asyncio.sleep(1)
+                continue
+
+        print(f"{captcha_type} solving timed out")
+        return False
+
+    except Exception as e:
+        print(f"Error solving {captcha_type}: {e}")
+        return False
+
+async def solve_incapsula_image_captcha(page, api_key):
+    """Solve Incapsula image-based CAPTCHAs"""
+    try:
+        print("Attempting to solve Incapsula image CAPTCHA...")
+
+        # Look for image elements within Incapsula iframe
+        image_selectors = [
+            'img[src*="captcha"]',
+            'img[alt*="captcha"]',
+            '.captcha-image',
+            'img[id*="challenge"]'
+        ]
+
+        captcha_image = None
+        for selector in image_selectors:
+            try:
+                img = page.locator(selector).first
+                if await img.is_visible(timeout=2000):
+                    captcha_image = img
+                    print(f"Found CAPTCHA image with selector: {selector}")
+                    break
+            except:
+                continue
+
+        if not captcha_image:
+            print("Could not find Incapsula CAPTCHA image")
+            return False
+
+        # Take screenshot of the image
+        try:
+            captcha_screenshot = await captcha_image.screenshot(type='png')
+            if not captcha_screenshot:
+                print("Could not capture CAPTCHA image screenshot")
+                return False
+        except Exception as e:
+            print(f"Error taking CAPTCHA image screenshot: {e}")
+            return False
+
+        # Convert to base64
+        captcha_base64 = base64.b64encode(captcha_screenshot).decode('utf-8')
+
+        # Submit to 2Captcha as base64 image
+        submit_url = "http://2captcha.com/in.php"
+        submit_data = {
+            'key': api_key,
+            'method': 'base64',
+            'body': captcha_base64,
+            'json': 1
+        }
+
+        submit_response = requests.post(submit_url, data=submit_data, timeout=30)
+        submit_result = submit_response.json()
+
+        if submit_result.get('status') != 1:
+            print(f"Failed to submit Incapsula image CAPTCHA: {submit_result}")
+            return False
+
+        task_id = submit_result['request']
+        print(f"Incapsula image CAPTCHA submitted successfully. Task ID: {task_id}")
+
+        # Poll for result
+        result_url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={task_id}&json=1"
+        max_attempts = 60
+
+        for attempt in range(max_attempts):
+            try:
+                result_response = requests.get(result_url, timeout=10)
+                result_data = result_response.json()
+
+                if result_data.get('status') == 1:
+                    solution = result_data['request']
+                    print(f"Incapsula image CAPTCHA solved! Solution: {solution}")
+
+                    # Apply the solution (this depends on how Incapsula presents the input)
+                    # Could be text input, coordinates, etc.
+                    return await apply_incapsula_solution(page, solution)
+
+                elif result_data.get('request') == 'CAPCHA_NOT_READY':
+                    print(f"Incapsula CAPTCHA not ready yet, waiting... (attempt {attempt + 1}/{max_attempts})")
+                    await asyncio.sleep(1)
+                    continue
+
+                else:
+                    print(f"Incapsula CAPTCHA solving failed: {result_data}")
+                    return False
+
+            except Exception as e:
+                print(f"Error polling Incapsula CAPTCHA result: {e}")
+                await asyncio.sleep(1)
+                continue
+
+        print("Incapsula CAPTCHA solving timed out")
+        return False
+
+    except Exception as e:
+        print(f"Error solving Incapsula image CAPTCHA: {e}")
+        return False
+
+async def apply_incapsula_solution(page, solution):
+    """Apply the Incapsula CAPTCHA solution"""
+    try:
+        # Try different input methods that Incapsula might use
+
+        # Method 1: Text input field
+        text_inputs = [
+            'input[type="text"]',
+            'input[name*="captcha"]',
+            'input[id*="captcha"]',
+            'input[name*="response"]',
+            'input[id*="response"]'
+        ]
+
+        for selector in text_inputs:
+            try:
+                input_field = page.locator(selector).first
+                if await input_field.is_visible(timeout=1000):
+                    await input_field.fill(solution)
+                    print(f"Filled text input with solution: {selector}")
+
+                    # Try to submit
+                    submit_selectors = [
+                        'button[type="submit"]',
+                        'input[type="submit"]',
+                        'button[id*="submit"]',
+                        '.submit-button'
+                    ]
+
+                    for submit_sel in submit_selectors:
+                        try:
+                            submit_btn = page.locator(submit_sel).first
+                            if await submit_btn.is_visible(timeout=1000):
+                                await submit_btn.click()
+                                print("Submitted Incapsula CAPTCHA solution")
+                                return True
+                        except:
+                            continue
+
+                    break
+            except:
+                continue
+
+        # Method 2: If it's coordinate-based (clicking on image)
+        if ',' in solution:
+            try:
+                coordinates = [int(coord.strip()) for coord in solution.split(',')]
+                # This would require knowing the image layout
+                print("Coordinate-based solution detected but not implemented")
+                return False
+            except:
+                pass
+
+        print("Could not apply Incapsula CAPTCHA solution")
+        return False
+
+    except Exception as e:
+        print(f"Error applying Incapsula solution: {e}")
         return False
 
 async def solve_grid_captcha(page, captcha_element, task_text, image_base64, api_key):
-    """Solve grid-based CAPTCHA (select specific images)"""
+    """Solve grid-based CAPTCHA (select specific images) using 2Captcha API"""
     try:
-        # This is a simplified implementation
-        # Real implementation would:
-        # 1. Send image to 2Captcha with proper task type
-        # 2. Wait for solution
-        # 3. Parse coordinates and click images
+        print("Submitting CAPTCHA to 2Captcha service...")
 
-        print("Grid CAPTCHA solving not fully implemented yet.")
-        print("This would require:")
-        print("- Proper 2Captcha API integration")
-        print("- Image analysis to determine grid layout")
-        print("- Coordinate parsing and clicking")
-
-        # For demonstration, we'll implement a basic approach
-        # In practice, you'd use the 2Captcha API
-
-        # Example API call structure (commented out):
-        """
-        import requests
-
-        # Submit CAPTCHA task
+        # Submit CAPTCHA task to 2Captcha
         submit_url = "http://2captcha.com/in.php"
         submit_data = {
             'key': api_key,
@@ -313,29 +703,51 @@ async def solve_grid_captcha(page, captcha_element, task_text, image_base64, api
             'json': 1
         }
 
-        submit_response = requests.post(submit_url, data=submit_data)
-        if submit_response.json().get('status') == 1:
-            task_id = submit_response.json()['request']
+        try:
+            submit_response = requests.post(submit_url, data=submit_data, timeout=30)
+            submit_result = submit_response.json()
 
-            # Poll for result
-            result_url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={task_id}&json=1"
+            if submit_result.get('status') != 1:
+                print(f"Failed to submit CAPTCHA: {submit_result}")
+                return False
 
-            for _ in range(60):  # Wait up to 60 seconds
-                result_response = requests.get(result_url)
+            task_id = submit_result['request']
+            print(f"CAPTCHA submitted successfully. Task ID: {task_id}")
+
+        except Exception as e:
+            print(f"Error submitting CAPTCHA to 2Captcha: {e}")
+            return False
+
+        # Poll for result (up to 60 seconds)
+        result_url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={task_id}&json=1"
+        max_attempts = 60
+
+        for attempt in range(max_attempts):
+            try:
+                result_response = requests.get(result_url, timeout=10)
                 result_data = result_response.json()
 
                 if result_data.get('status') == 1:
                     solution = result_data['request']
-                    # Parse solution and click images
+                    print(f"CAPTCHA solved! Solution: {solution}")
+                    # Apply the solution
                     return await apply_captcha_solution(page, captcha_element, solution)
 
-                time.sleep(1)
+                elif result_data.get('request') == 'CAPCHA_NOT_READY':
+                    print(f"CAPTCHA not ready yet, waiting... (attempt {attempt + 1}/{max_attempts})")
+                    await asyncio.sleep(1)
+                    continue
 
-        return False
-        """
+                else:
+                    print(f"CAPTCHA solving failed: {result_data}")
+                    return False
 
-        print("For now, keeping browser open for manual CAPTCHA solving...")
-        await asyncio.sleep(60)  # Keep browser open for manual solving
+            except Exception as e:
+                print(f"Error polling CAPTCHA result: {e}")
+                await asyncio.sleep(1)
+                continue
+
+        print("CAPTCHA solving timed out")
         return False
 
     except Exception as e:
@@ -432,8 +844,8 @@ async def main():
                     print("Checking for CAPTCHA on dashboard page...")
                     captcha_detected = await detect_captcha(page)
                     if captcha_detected:
-                        print("CAPTCHA detected on dashboard - attempting to solve...")
-                        captcha_solved = await solve_captcha(page)
+                        print(f"CAPTCHA detected: {captcha_detected} - attempting to solve...")
+                        captcha_solved = await solve_captcha(page, captcha_detected)
                         if captcha_solved:
                             print("CAPTCHA solved successfully!")
                             # Wait for page to reload after CAPTCHA
