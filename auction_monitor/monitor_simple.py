@@ -149,8 +149,8 @@ class AuctionMonitor:
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
             print(f"🎯 Skipping bid input setting, going straight to button detection...")
-            # Try to get the actual frame object instead of using FrameLocator
-            print(f"🔍 Getting actual iframe frame object...")
+            # Get the actual frame object
+            print(f"🔍 Getting iframe frame object...")
             target_frame = None
             frames = self.page.frames
             for frame in frames:
@@ -161,80 +161,21 @@ class AuctionMonitor:
 
             if not target_frame:
                 print(f"❌ Could not find g2auction.copart.com frame")
-                print(f"📋 Available frames:")
-                for i, frame in enumerate(frames[1:], 1):  # skip main frame
-                    print(f"  Frame {i}: {frame.url}")
                 return False
 
-            # Try to list all buttons in the iframe using the actual frame
-            print(f"🔍 Listing all buttons in iframe for debugging...")
+            # Try the most direct approach - just find the bid button
+            print(f"🎯 Looking for bid button with selector: button[data-uname='bidCurrentLot']")
             try:
-                all_buttons = target_frame.locator('button')
-                button_count = await all_buttons.count()
-                print(f"📊 Found {button_count} total buttons in iframe")
-
-                # List details of first few buttons
-                for i in range(min(button_count, 5)):
-                    try:
-                        btn = all_buttons.nth(i)
-                        btn_text = await btn.text_content()
-                        data_uname = await btn.get_attribute('data-uname')
-                        data_id = await btn.get_attribute('data-id')
-                        btn_class = await btn.get_attribute('class')
-                        btn_type = await btn.get_attribute('type')
-                        is_visible = await btn.is_visible(timeout=500)
-                        print(f"  Button {i}: text='{btn_text}', data-uname='{data_uname}', data-id='{data_id}', class='{btn_class}', type='{btn_type}', visible={is_visible}")
-                    except Exception as e:
-                        print(f"  Button {i}: error getting details - {e}")
-
+                bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]').first
+                is_visible = await bid_button.is_visible(timeout=3000)
+                if is_visible:
+                    print(f"✅ BID BUTTON FOUND and visible!")
+                else:
+                    print(f"⚠️ Bid button found but not visible")
+                    return False
             except Exception as e:
-                print(f"❌ Could not list buttons in iframe: {e}")
+                print(f"❌ Bid button selector failed: {e}")
                 return False
-
-            # Find the bid button (but don't click it) - try multiple selectors
-            bid_button_selectors = [
-                'button[data-uname="bidCurrentLot"]',
-                'button[data-id="345"]',
-                'button.themed.btn.btn-primary.btn-sm.btn-auctions.disableEnter',
-                'button[type="submit"][data-uname="bidCurrentLot"]',
-                'button[type="submit"][data-id]',
-                'button'  # Fallback: any button
-            ]
-
-            bid_button = None
-            found_selector = None
-
-            # Use the actual frame object for button detection
-            bid_button = None
-            found_selector = None
-
-            for selector in bid_button_selectors:
-                try:
-                    print(f"🔍 Trying bid button selector: {selector}")
-                    candidate_button = target_frame.locator(selector).first
-
-                    # Check if element exists first
-                    count = await candidate_button.count()
-                    print(f"   📊 Elements found with selector: {count}")
-
-                    if count > 0:
-                        # Check visibility
-                        is_visible = await candidate_button.is_visible(timeout=1000)
-                        print(f"   👁️ Element visibility: {is_visible}")
-
-                        if is_visible:
-                            bid_button = candidate_button
-                            found_selector = selector
-                            print(f"✅ BID BUTTON FOUND with selector: {selector}")
-                            break
-                        else:
-                            print(f"   ⚠️ Element exists but not visible")
-                    else:
-                        print(f"   ❌ No elements found with selector")
-
-                except Exception as e:
-                    print(f"   💥 Selector {selector} failed: {e}")
-                    continue
 
             if not bid_button:
                 print("❌ BID BUTTON NOT FOUND with any selector")
