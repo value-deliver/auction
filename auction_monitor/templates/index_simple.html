@@ -325,6 +325,18 @@
                 <div class="card-subtitle">Current auction</div>
             </div>
 
+            <div class="card lot-title" style="background: linear-gradient(45deg, #667eea, #764ba2); color: white;">
+                <div class="card-title">Lot Title</div>
+                <div class="card-value" id="lot-title">N/A</div>
+                <div class="card-subtitle">Vehicle description</div>
+            </div>
+
+            <div class="card lot-number" style="background: linear-gradient(45deg, #FF9FF3, #FECA57); color: #333;">
+                <div class="card-title">Lot Number</div>
+                <div class="card-value" id="lot-number">N/A</div>
+                <div class="card-subtitle">Copart lot ID</div>
+            </div>
+
             <div class="card current-bid">
                 <div class="card-title">Current Bid</div>
                 <div class="card-value" id="current-bid">N/A</div>
@@ -383,6 +395,8 @@
             if (!data) return;
 
             document.getElementById('auction-id').textContent = data.auction_id || 'Unknown';
+            document.getElementById('lot-title').textContent = data.lot_title || 'N/A';
+            document.getElementById('lot-number').textContent = data.lot_number || 'N/A';
             document.getElementById('current-bid').textContent = data.current_bid || 'N/A';
             document.getElementById('current-bidder').textContent = data.current_bidder || 'N/A';
             document.getElementById('time-remaining').textContent = data.time_remaining || 'N/A';
@@ -501,6 +515,8 @@
                     // Reset display
                     updateAuctionData({
                         auction_id: 'Not monitoring',
+                        lot_title: 'N/A',
+                        lot_number: 'N/A',
                         current_bid: 'N/A',
                         current_bidder: 'N/A',
                         time_remaining: 'N/A',

@@ -703,6 +703,8 @@ class AuctionMonitor:
         """Extract current auction data from the page"""
         data = {
             'auction_id': 'Unknown',
+            'lot_title': 'N/A',
+            'lot_number': 'N/A',
             'current_bid': 'N/A',
             'current_bidder': 'N/A',
             'time_remaining': 'N/A',
@@ -722,6 +724,9 @@ class AuctionMonitor:
             if 'auctionDetails=' in url:
                 data['auction_id'] = url.split('auctionDetails=')[1].split('&')[0]
 
+            # Extract lot details from main page
+            await self._extract_lot_details_from_main_page(data)
+
             # Check for auction status indicators on main page
             await self._check_main_page_auction_status(data)
 
@@ -739,6 +744,65 @@ class AuctionMonitor:
             print(f"Error extracting auction data: {e}")
 
         return data
+
+    async def _extract_lot_details_from_main_page(self, data):
+        """Extract lot title and number from main page using Copart selectors"""
+        try:
+            # Extract lot title using the provided Copart selector
+            title_selectors = [
+                '.titlelbl.ellipsis[title]',  # Copart lot title selector
+                '.lot-title',
+                '.vehicle-title',
+                'h1',
+                '[data-uname*="title"]'
+            ]
+
+            for selector in title_selectors:
+                try:
+                    title_elem = self.page.locator(selector).first
+                    if await title_elem.is_visible(timeout=2000):
+                        # Try to get title from 'title' attribute first, then text content
+                        title_text = await title_elem.get_attribute('title')
+                        if not title_text:
+                            title_text = await title_elem.text_content()
+                        if title_text and title_text.strip():
+                            data['lot_title'] = title_text.strip()
+                            print(f"Found lot title with selector {selector}: {data['lot_title']}")
+                            break
+                except Exception as e:
+                    print(f"Error with title selector {selector}: {e}")
+                    continue
+
+            # Extract lot number using the provided Copart selector
+            lot_number_selectors = [
+                '.itempair .titlelbl.ellipsis[href*="lot/"]',  # Copart lot number selector
+                '.lot-number',
+                '.lot-num',
+                '#LotNumber',
+                'span[data-uname="lotdetailVinvalue"]',
+                '[data-uname*="lot"]'
+            ]
+
+            for selector in lot_number_selectors:
+                try:
+                    lot_elem = self.page.locator(selector).first
+                    if await lot_elem.is_visible(timeout=2000):
+                        # For Copart selector, get the text content (the lot number)
+                        lot_text = await lot_elem.text_content()
+                        if lot_text and lot_text.strip():
+                            # Extract just the numeric part
+                            import re
+                            lot_match = re.search(r'(\d+)', lot_text.strip())
+                            if lot_match:
+                                data['lot_number'] = lot_match.group(1)
+                                print(f"Found lot number with selector {selector}: {data['lot_number']}")
+                                break
+                except Exception as e:
+                    print(f"Error with lot number selector {selector}: {e}")
+                    continue
+
+        except Exception as e:
+            print(f"Error extracting lot details from main page: {e}")
 
     async def _check_main_page_auction_status(self, data):
         """Check main page for auction status indicators"""
@@ -1199,7 +1263,9 @@ class AuctionMonitor:
                             'last_update': self.last_update,
                             'content_change': True,
                             'bid_elements': content_data.get('bidElements', []),
-                            'bidder_elements': content_data.get('bidderElements', [])
+                            'bidder_elements': content_data.get('bidderElements', []),
+                            'lot_title': self.current_auction_data.get('lot_title', 'N/A'),
+                            'lot_number': self.current_auction_data.get('lot_number', 'N/A')
                         })
                         print("WebSocket event emitted for auction content change")
                     except Exception as e:
