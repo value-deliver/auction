@@ -149,6 +149,31 @@ class AuctionMonitor:
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
             print(f"🎯 Skipping bid input setting, going straight to button detection...")
+            # Try to list all buttons in the iframe first for debugging
+            print(f"🔍 Listing all buttons in iframe for debugging...")
+            try:
+                all_buttons = self.auction_frame.locator('button')
+                button_count = await all_buttons.count()
+                print(f"📊 Found {button_count} total buttons in iframe")
+
+                # List details of first few buttons
+                for i in range(min(button_count, 5)):
+                    try:
+                        btn = all_buttons.nth(i)
+                        btn_text = await btn.text_content()
+                        data_uname = await btn.get_attribute('data-uname')
+                        data_id = await btn.get_attribute('data-id')
+                        btn_class = await btn.get_attribute('class')
+                        btn_type = await btn.get_attribute('type')
+                        is_visible = await btn.is_visible(timeout=500)
+                        print(f"  Button {i}: text='{btn_text}', data-uname='{data_uname}', data-id='{data_id}', class='{btn_class}', type='{btn_type}', visible={is_visible}")
+                    except Exception as e:
+                        print(f"  Button {i}: error getting details - {e}")
+
+            except Exception as e:
+                print(f"❌ Could not list buttons in iframe: {e}")
+                return False
+
             # Find the bid button (but don't click it) - try multiple selectors
             bid_button_selectors = [
                 'button[data-uname="bidCurrentLot"]',
