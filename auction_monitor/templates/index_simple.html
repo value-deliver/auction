@@ -417,6 +417,18 @@
             document.getElementById('time-remaining').textContent = data.time_remaining || 'N/A';
             document.getElementById('active-bidders').textContent = data.active_bidders || '0';
 
+            // Auto-populate bid amount input field with suggestion
+            const bidSuggestion = data.bid_suggestion;
+            if (bidSuggestion && bidSuggestion !== 'N/A') {
+                const bidAmountInput = document.getElementById('bid-amount');
+                // Only update if the field is empty or contains the old suggestion
+                const currentValue = bidAmountInput.value;
+                if (!currentValue || currentValue === '' || currentValue === bidSuggestion) {
+                    bidAmountInput.value = bidSuggestion;
+                    updateBidButtonState();
+                }
+            }
+
             const statusElement = document.getElementById('auction-status');
             const statusCard = document.getElementById('status-card');
             const status = data.status || 'unknown';
@@ -545,6 +557,10 @@
                         active_bidders: 0,
                         status: 'Not monitoring'
                     });
+
+                    // Clear bid amount input field
+                    document.getElementById('bid-amount').value = '';
+                    updateBidButtonState();
                 } else {
                     addMessage(result.message, 'error');
                 }
