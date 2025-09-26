@@ -113,28 +113,39 @@ class AuctionMonitor:
 
                 # Highlight the button by changing its style
                 try:
+                    original_text = await bid_button.text_content()
+                    print(f"Original button text: '{original_text}'")
+
                     await bid_button.evaluate("""
                         (element) => {
                             const originalText = element.textContent || element.innerText || 'Bid';
+                            console.log('Highlighting button, original text:', originalText);
+
                             element.style.backgroundColor = '#ff6b6b';
                             element.style.border = '3px solid #ff0000';
                             element.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.5)';
                             element.style.transform = 'scale(1.1)';
                             element.textContent = 'BUTTON FOUND!';
 
+                            console.log('Button highlighted successfully');
+
                             // Reset after 3 seconds
                             setTimeout(() => {
+                                console.log('Resetting button to original state');
                                 element.style.backgroundColor = '';
                                 element.style.border = '';
                                 element.style.boxShadow = '';
                                 element.style.transform = '';
                                 element.textContent = originalText;
+                                console.log('Button reset complete');
                             }, 3000);
                         }
                     """)
                     print("🎨 Bid button highlighted for 3 seconds")
                 except Exception as highlight_error:
                     print(f"Could not highlight button: {highlight_error}")
+                    import traceback
+                    traceback.print_exc()
 
                 await asyncio.sleep(1)  # Brief pause to show the highlight
                 print("🎯 Bid button detection test completed successfully")
@@ -1101,7 +1112,7 @@ class AuctionMonitor:
                 let lastBidder = null;
                 let mutationCount = 0;
 
-                // Function to extract current bid, bidder, and bid suggestion from input field
+                // Function to extract current bid, bidder, bid suggestion, and lot information
                 function getCurrentBidInfo() {
                     const auctionDiv = document.querySelector('.auctionrunningdiv-MACRO');
                     if (!auctionDiv) return null;
@@ -1138,10 +1149,60 @@ class AuctionMonitor:
                         }
                     }
 
+                    // Extract lot title and number
+                    let lotTitle = null;
+                    let lotNumber = null;
+
+                    // Extract lot title
+                    const titleSelectors = [
+                        '.titlelbl.ellipsis[title]',
+                        '.lot-title',
+                        '.vehicle-title',
+                        'h1',
+                        '[data-uname*="title"]'
+                    ];
+
+                    for (const selector of titleSelectors) {
+                        const titleElem = document.querySelector(selector);
+                        if (titleElem) {
+                            const titleText = titleElem.getAttribute('title') || titleElem.textContent;
+                            if (titleText && titleText.trim()) {
+                                lotTitle = titleText.trim();
+                                break;
+                            }
+                        }
+                    }
+
+                    // Extract lot number
+                    const lotNumberSelectors = [
+                        '.itempair .titlelbl.ellipsis[href*="lot/"]',
+                        '.lot-number',
+                        '.lot-num',
+                        '#LotNumber',
+                        'span[data-uname="lotdetailVinvalue"]',
+                        '[data-uname*="lot"]'
+                    ];
+
+                    for (const selector of lotNumberSelectors) {
+                        const lotElem = document.querySelector(selector);
+                        if (lotElem) {
+                            const lotText = lotElem.textContent;
+                            if (lotText && lotText.trim()) {
+                                const match = lotText.match(/(\d+)/);
+                                if (match) {
+                                    lotNumber = match[1];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     return {
                         bid: currentBid,
                         bidder: currentBidder,
                         bidSuggestion: bidSuggestion,
+                        lotTitle: lotTitle,
+                        lotNumber: lotNumber,
                         timestamp: new Date().toISOString()
                     };
                 }
@@ -1226,9 +1287,15 @@ class AuctionMonitor:
                 json_data = text[11:]  # Remove 'BID_CHANGE:' prefix
                 bid_data = json.loads(json_data)
 
-                # Extract current lot information for the update
-                current_lot_title = self.current_auction_data.get('lot_title', 'N/A')
-                current_lot_number = self.current_auction_data.get('lot_number', 'N/A')
+                # Extract current lot information from the bid change data (sent by JavaScript)
+                current_lot_title = bid_data.get('lotTitle', self.current_auction_data.get('lot_title', 'N/A'))
+                current_lot_number = bid_data.get('lotNumber', self.current_auction_data.get('lot_number', 'N/A'))
+
+                # Update stored lot information if it changed
+                if current_lot_title != 'N/A':
+                    self.current_auction_data['lot_title'] = current_lot_title
+                if current_lot_number != 'N/A':
+                    self.current_auction_data['lot_number'] = current_lot_number
 
                 # Update current data
                 bid_suggestion = bid_data.get('bidSuggestion', 'N/A')
