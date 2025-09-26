@@ -80,8 +80,53 @@ class AuctionMonitor:
                 await self.browser.close()
 
     def stop_monitoring(self):
-        """Stop monitoring"""
+        """Stop monitoring and clean up listeners"""
+        print("Stopping auction monitoring and cleaning up listeners...")
+
+        # Clean up MutationObservers in the iframe
+        if self.auction_frame and self.page:
+            try:
+                cleanup_js = """
+                (function() {
+                    console.log('Cleaning up MutationObservers...');
+
+                    // Disconnect any existing observers
+                    if (window.auctionObservers && window.auctionObservers.length > 0) {
+                        window.auctionObservers.forEach(function(observer) {
+                            if (observer && typeof observer.disconnect === 'function') {
+                                observer.disconnect();
+                                console.log('Disconnected observer');
+                            }
+                        });
+                        window.auctionObservers = [];
+                    }
+
+                    // Also try to find and disconnect any remaining observers
+                    // This is a fallback in case observers weren't stored properly
+                    const auctionDiv = document.querySelector('.auctionrunningdiv-MACRO');
+                    if (auctionDiv) {
+                        // Note: We can't directly access the observer instances,
+                        // but we can remove event listeners if any were added
+                        console.log('Auction div found, cleanup complete');
+                    }
+
+                    console.log('MutationObserver cleanup completed');
+                })();
+                """
+
+                # Try to inject cleanup JavaScript synchronously
+                try:
+                    # Use page.evaluate to run in the main frame context
+                    self.page.evaluate(cleanup_js)
+                    print("✅ MutationObserver cleanup completed")
+                except Exception as e:
+                    print(f"⚠️ Could not clean up MutationObservers: {e}")
+
+            except Exception as e:
+                print(f"⚠️ Error during cleanup: {e}")
+
         self.is_monitoring = False
+        print("Auction monitoring stopped")
 
     async def place_bid(self, bid_amount):
         """Test bid button detection without actually placing a bid"""
@@ -1108,6 +1153,11 @@ class AuctionMonitor:
             (function() {
                 console.log('Setting up auction content observer...');
 
+                // Initialize global observer storage if not exists
+                if (!window.auctionObservers) {
+                    window.auctionObservers = [];
+                }
+
                 let lastBid = null;
                 let lastBidder = null;
                 let mutationCount = 0;
@@ -1234,6 +1284,9 @@ class AuctionMonitor:
                         attributes: true,
                         attributeFilter: ['fill', 'x', 'y', 'text-anchor']
                     });
+
+                    // Store observer reference for cleanup
+                    window.auctionObservers.push(observer);
 
                     console.log('Bid change observer set up successfully');
                 } else {
