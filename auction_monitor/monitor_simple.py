@@ -84,13 +84,13 @@ class AuctionMonitor:
         self.is_monitoring = False
 
     async def place_bid(self, bid_amount):
-        """Place a bid on the current auction"""
+        """Test bid button detection without actually placing a bid"""
         try:
             if not self.auction_frame:
                 print("No auction frame available for bidding")
                 return False
 
-            print(f"Attempting to place bid: ${bid_amount}")
+            print(f"Testing bid button detection for amount: ${bid_amount}")
 
             # First, set the bid amount in the input field
             bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
@@ -104,67 +104,48 @@ class AuctionMonitor:
                 print(f"Failed to set bid amount: {e}")
                 return False
 
-            # Click the bid button
+            # Find the bid button (but don't click it)
             bid_button_selector = 'button[data-uname="bidCurrentLot"], button[data-id]'
             try:
                 bid_button = self.auction_frame.locator(bid_button_selector).first
                 await bid_button.wait_for(timeout=5000)
-                await bid_button.click()
-                print("Clicked bid button")
-                await asyncio.sleep(1)  # Wait for bid to process
+                print(f"✅ BID BUTTON FOUND with selector: {bid_button_selector}")
+
+                # Highlight the button by changing its style
+                try:
+                    await bid_button.evaluate("""
+                        (element) => {
+                            element.style.backgroundColor = '#ff6b6b';
+                            element.style.border = '3px solid #ff0000';
+                            element.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.5)';
+                            element.style.transform = 'scale(1.1)';
+                            element.textContent = 'BUTTON FOUND!';
+
+                            // Reset after 3 seconds
+                            setTimeout(() => {
+                                element.style.backgroundColor = '';
+                                element.style.border = '';
+                                element.style.boxShadow = '';
+                                element.style.transform = '';
+                                element.textContent = element.textContent.replace('BUTTON FOUND!', 'Bid');
+                            }, 3000);
+                        }
+                    """)
+                    print("🎨 Bid button highlighted for 3 seconds")
+                except Exception as highlight_error:
+                    print(f"Could not highlight button: {highlight_error}")
+
+                await asyncio.sleep(1)  # Brief pause to show the highlight
+                print("🎯 Bid button detection test completed successfully")
+                return True
+
             except Exception as e:
-                print(f"Failed to click bid button: {e}")
+                print(f"❌ BID BUTTON NOT FOUND with selector: {bid_button_selector}")
+                print(f"Error: {e}")
                 return False
 
-            # Wait a moment for any confirmation or error messages
-            await asyncio.sleep(2)
-
-            # Check for success/error indicators
-            success_indicators = [
-                'text="bid accepted"',
-                'text="bid placed"',
-                'text="successful"',
-                '.bid-success',
-                '.bid-confirmation'
-            ]
-
-            error_indicators = [
-                'text="bid rejected"',
-                'text="bid failed"',
-                'text="invalid bid"',
-                'text="bid too low"',
-                '.bid-error',
-                '.bid-rejected'
-            ]
-
-            # Check for errors first
-            for indicator in error_indicators:
-                try:
-                    error_elem = self.auction_frame.locator(indicator).first
-                    if await error_elem.is_visible(timeout=2000):
-                        error_text = await error_elem.text_content()
-                        print(f"Bid error detected: {error_text}")
-                        return False
-                except:
-                    continue
-
-            # Check for success
-            for indicator in success_indicators:
-                try:
-                    success_elem = self.auction_frame.locator(indicator).first
-                    if await success_elem.is_visible(timeout=2000):
-                        success_text = await success_elem.text_content()
-                        print(f"Bid success detected: {success_text}")
-                        return True
-                except:
-                    continue
-
-            # If no clear success/error indicators, assume success if no errors found
-            print("Bid placed (no explicit confirmation/error detected)")
-            return True
-
         except Exception as e:
-            print(f"Bid placement failed: {e}")
+            print(f"Bid button detection test failed: {e}")
             return False
 
     def _load_env(self):
