@@ -195,13 +195,31 @@ class AuctionMonitor:
 
             # Highlight the Copart bid button by changing its style
             try:
+                print("🎨 Attempting to highlight bid button...")
                 original_text = await bid_button.text_content()
-                print(f"Original Copart button text: '{original_text}'")
+                print(f"✅ Got button text: '{original_text}'")
+
+                # Get button attributes for debugging
+                data_uname = await bid_button.get_attribute('data-uname')
+                data_id = await bid_button.get_attribute('data-id')
+                button_class = await bid_button.get_attribute('class')
+                button_type = await bid_button.get_attribute('type')
+                print(f"🎯 Button attributes - data-uname: '{data_uname}', data-id: '{data_id}', class: '{button_class}', type: '{button_type}'")
+
+                # Check if button is visible
+                is_visible = await bid_button.is_visible()
+                print(f"👁️ Button visibility: {is_visible}")
 
                 await bid_button.evaluate("""
                     (element) => {
+                        console.log('🎨 Starting Copart bid button highlighting...');
+                        console.log('Element found:', element);
+                        console.log('Element tagName:', element.tagName);
+                        console.log('Element className:', element.className);
+                        console.log('Element textContent:', element.textContent);
+
                         const originalText = element.textContent || element.innerText || 'Bid';
-                        console.log('Highlighting Copart bid button, original text:', originalText);
+                        console.log('Storing original text:', originalText);
 
                         // Store original styles
                         const originalStyles = {
@@ -209,35 +227,54 @@ class AuctionMonitor:
                             border: element.style.border,
                             boxShadow: element.style.boxShadow,
                             transform: element.style.transform,
-                            color: element.style.color
+                            color: element.style.color,
+                            background: element.style.background,
+                            borderRadius: element.style.borderRadius
                         };
+                        console.log('Original styles stored:', originalStyles);
 
-                        // Apply bright highlighting
-                        element.style.backgroundColor = '#00ff00';  // Bright green
-                        element.style.border = '4px solid #ff0000';  // Red border
-                        element.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';  // Red glow
-                        element.style.transform = 'scale(1.2)';  // Larger scale
-                        element.style.color = '#000000';  // Black text for contrast
+                        // Apply bright highlighting with !important to override any CSS
+                        element.style.setProperty('background-color', '#00ff00', 'important');
+                        element.style.setProperty('border', '4px solid #ff0000', 'important');
+                        element.style.setProperty('box-shadow', '0 0 20px rgba(255, 0, 0, 0.8)', 'important');
+                        element.style.setProperty('transform', 'scale(1.2)', 'important');
+                        element.style.setProperty('color', '#000000', 'important');
+                        element.style.setProperty('z-index', '9999', 'important');
+                        element.style.setProperty('position', 'relative', 'important');
+
+                        // Change text
                         element.textContent = 'TEST BID SUCCESS!';
+                        console.log('✅ Copart bid button highlighting applied successfully');
 
-                        console.log('Copart bid button highlighted successfully');
+                        // Add a visual indicator that the script ran
+                        element.setAttribute('data-highlighted', 'true');
 
                         // Reset after 5 seconds
                         setTimeout(() => {
-                            console.log('Resetting Copart bid button to original state');
-                            element.style.backgroundColor = originalStyles.backgroundColor;
-                            element.style.border = originalStyles.border;
-                            element.style.boxShadow = originalStyles.boxShadow;
-                            element.style.transform = originalStyles.transform;
-                            element.style.color = originalStyles.color;
+                            console.log('🔄 Resetting Copart bid button to original state...');
+                            element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                            element.style.setProperty('border', originalStyles.border, 'important');
+                            element.style.setProperty('box-shadow', originalStyles.boxShadow, 'important');
+                            element.style.setProperty('transform', originalStyles.transform, 'important');
+                            element.style.setProperty('color', originalStyles.color, 'important');
+                            element.style.setProperty('z-index', '', 'important');
+                            element.style.setProperty('position', '', 'important');
                             element.textContent = originalText;
-                            console.log('Copart bid button reset complete');
+                            element.removeAttribute('data-highlighted');
+                            console.log('✅ Copart bid button reset complete');
                         }, 5000);
+
+                        return 'highlighting_applied';
                     }
                 """)
-                print("🎨 Copart bid button highlighted in bright green for 5 seconds")
+                print("🎨 Copart bid button highlighting script executed successfully")
+
+                # Verify the highlighting was applied by checking the attribute
+                highlighted_attr = await bid_button.get_attribute('data-highlighted')
+                print(f"🎯 Highlighting verification - data-highlighted attribute: '{highlighted_attr}'")
+
             except Exception as highlight_error:
-                print(f"Could not highlight Copart bid button: {highlight_error}")
+                print(f"❌ Could not highlight Copart bid button: {highlight_error}")
                 import traceback
                 traceback.print_exc()
 
