@@ -569,6 +569,7 @@
         }
 
         async function placeBid(bidAmount) {
+            console.log('Sending bid request for amount:', bidAmount);
             try {
                 const response = await fetch('/api/bid', {
                     method: 'POST',
@@ -579,14 +580,18 @@
                 });
 
                 const result = await response.json();
+                console.log('Bid response received:', result);
 
                 if (result.success) {
                     addMessage(`Bid placed: $${bidAmount}`, 'status');
+                    console.log('Bid placed successfully');
                 } else {
                     addMessage(`Bid failed: ${result.message}`, 'error');
+                    console.log('Bid failed:', result.message);
                 }
             } catch (error) {
                 addMessage(`Bid error: ${error.message}`, 'error');
+                console.error('Bid request error:', error);
             }
         }
 
@@ -611,8 +616,11 @@
 
         document.getElementById('place-bid-btn').addEventListener('click', function() {
             const bidAmount = document.getElementById('bid-amount').value;
+            console.log('Bid button clicked with amount:', bidAmount);
             if (bidAmount && parseFloat(bidAmount) > 0) {
                 placeBid(parseFloat(bidAmount));
+            } else {
+                console.log('Invalid bid amount:', bidAmount);
             }
         });
 
