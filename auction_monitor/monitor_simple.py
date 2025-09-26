@@ -157,8 +157,28 @@ class AuctionMonitor:
                 print(f"🔍 Looking for bid input with selector: {bid_input_selector}")
                 bid_input = self.auction_frame.locator(bid_input_selector).first
                 print(f"📍 Found bid input element: {bid_input}")
-                await bid_input.wait_for(timeout=5000)
-                print(f"✅ Bid input is visible and ready")
+
+                # Check if element exists before waiting
+                count = await bid_input.count()
+                print(f"📊 Bid input count: {count}")
+
+                if count == 0:
+                    print(f"❌ No bid input elements found with selector: {bid_input_selector}")
+                    return False
+
+                print(f"⏳ Waiting for bid input to be visible (timeout: 5s)...")
+                try:
+                    await bid_input.wait_for(timeout=5000)
+                    print(f"✅ Bid input is visible and ready")
+                except Exception as wait_error:
+                    print(f"⚠️ Bid input wait_for failed: {wait_error}")
+                    # Check if element is visible anyway
+                    is_visible = await bid_input.is_visible()
+                    print(f"👁️ Bid input visibility check: {is_visible}")
+                    if not is_visible:
+                        print(f"❌ Bid input is not visible, cannot proceed")
+                        return False
+                    print(f"⚠️ Bid input not ready but visible, proceeding anyway...")
                 await bid_input.fill(str(bid_amount))
                 print(f"💰 Successfully set bid amount to: ${bid_amount}")
                 await asyncio.sleep(0.5)  # Brief pause
