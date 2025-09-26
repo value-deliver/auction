@@ -343,6 +343,12 @@
                 <div class="card-subtitle">Highest bid</div>
             </div>
 
+            <div class="card bid-suggestion" style="background: linear-gradient(45deg, #FF9F43, #FECA57); color: #333;">
+                <div class="card-title">Bid Suggestion</div>
+                <div class="card-value" id="bid-suggestion">N/A</div>
+                <div class="card-subtitle">Next bid amount</div>
+            </div>
+
             <div class="card current-bidder">
                 <div class="card-title">Current Bidder</div>
                 <div class="card-value" id="current-bidder">N/A</div>
@@ -398,6 +404,7 @@
             document.getElementById('lot-title').textContent = data.lot_title || 'N/A';
             document.getElementById('lot-number').textContent = data.lot_number || 'N/A';
             document.getElementById('current-bid').textContent = data.current_bid || 'N/A';
+            document.getElementById('bid-suggestion').textContent = data.bid_suggestion || 'N/A';
             document.getElementById('current-bidder').textContent = data.current_bidder || 'N/A';
             document.getElementById('time-remaining').textContent = data.time_remaining || 'N/A';
             document.getElementById('active-bidders').textContent = data.active_bidders || '0';
@@ -518,6 +525,7 @@
                         lot_title: 'N/A',
                         lot_number: 'N/A',
                         current_bid: 'N/A',
+                        bid_suggestion: 'N/A',
                         current_bidder: 'N/A',
                         time_remaining: 'N/A',
                         active_bidders: 0,

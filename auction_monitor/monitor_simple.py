@@ -660,6 +660,20 @@ class AuctionMonitor:
 
         print(f"Initial data: Bid={auction_data['current_bid']}, Bidder={auction_data['current_bidder']}, Time={auction_data['time_remaining']}, Status={auction_data['status']}")
 
+        # Emit initial data via WebSocket
+        if self.socketio:
+            try:
+                self.socketio.emit('auction_update', {
+                    'is_monitoring': self.is_monitoring,
+                    'current_auction': self.current_auction_data,
+                    'last_update': self.last_update,
+                    'content_change': False,
+                    'initial_load': True
+                })
+                print("Initial WebSocket data emitted")
+            except Exception as e:
+                print(f"Failed to emit initial WebSocket data: {e}")
+
         # Keep monitoring active
         while self.is_monitoring:
             try:
@@ -671,17 +685,40 @@ class AuctionMonitor:
                 if not hasattr(self, '_last_health_check') or current_time - self._last_health_check > 30:
                     self._last_health_check = current_time
 
-                    auction_data = await self._extract_auction_data()
-                    self.current_auction_data = auction_data
-                    self.last_update = datetime.now().isoformat()
-                    print(f"Health check update: Bid={auction_data['current_bid']}, Time={auction_data['time_remaining']}")
+                    try:
+                        auction_data = await self._extract_auction_data()
+                        self.current_auction_data = auction_data
+                        self.last_update = datetime.now().isoformat()
+                        print(f"Health check update: Bid={auction_data['current_bid']}, Time={auction_data['time_remaining']}")
 
-                    # Check for recent network activity
-                    await self._check_recent_network_activity()
+                        # Check for recent network activity
+                        await self._check_recent_network_activity()
+                    except Exception as extract_error:
+                        print(f"Data extraction failed during health check: {extract_error}")
+                        # Try to reinitialize iframe access if it failed
+                        if "destroyed" in str(extract_error).lower():
+                            print("Execution context destroyed, attempting to reinitialize...")
+                            try:
+                                # Re-setup iframe access
+                                await self._navigate_to_auction(self.page.url)
+                                await self._setup_mutation_observer()
+                            except Exception as reinit_error:
+                                print(f"Failed to reinitialize iframe access: {reinit_error}")
 
             except Exception as e:
                 print(f'Monitoring error: {str(e)}')
-                await asyncio.sleep(5)
+                # If it's an execution context destroyed error, try to recover
+                if "destroyed" in str(e).lower() or "context" in str(e).lower():
+                    print("Execution context error detected, attempting recovery...")
+                    await asyncio.sleep(2)
+                    try:
+                        # Try to reinitialize the monitoring setup
+                        await self._setup_mutation_observer()
+                    except Exception as recovery_error:
+                        print(f"Recovery failed: {recovery_error}")
+                        await asyncio.sleep(10)  # Wait longer before retry
+                else:
+                    await asyncio.sleep(5)
 
     async def _check_recent_network_activity(self):
         """Check for recent network activity that might indicate auction updates"""
@@ -746,8 +783,12 @@ class AuctionMonitor:
         return data
 
     async def _extract_lot_details_from_main_page(self, data):
-        """Extract lot title and number from main page using Copart selectors"""
+        """Extract lot title and number from iframe using Copart selectors"""
         try:
+            if not self.auction_frame:
+                print("No auction frame available for lot details extraction")
+                return
+
             # Extract lot title using the provided Copart selector
             title_selectors = [
                 '.titlelbl.ellipsis[title]',  # Copart lot title selector
@@ -759,7 +800,7 @@ class AuctionMonitor:
 
             for selector in title_selectors:
                 try:
-                    title_elem = self.page.locator(selector).first
+                    title_elem = self.auction_frame.locator(selector).first
                     if await title_elem.is_visible(timeout=2000):
                         # Try to get title from 'title' attribute first, then text content
                         title_text = await title_elem.get_attribute('title')
@@ -785,7 +826,7 @@ class AuctionMonitor:
 
             for selector in lot_number_selectors:
                 try:
-                    lot_elem = self.page.locator(selector).first
+                    lot_elem = self.auction_frame.locator(selector).first
                     if await lot_elem.is_visible(timeout=2000):
                         # For Copart selector, get the text content (the lot number)
                         lot_text = await lot_elem.text_content()
@@ -802,7 +843,7 @@ class AuctionMonitor:
                     continue
 
         except Exception as e:
-            print(f"Error extracting lot details from main page: {e}")
+            print(f"Error extracting lot details from iframe: {e}")
 
     async def _check_main_page_auction_status(self, data):
         """Check main page for auction status indicators"""
@@ -1074,72 +1115,72 @@ class AuctionMonitor:
             (function() {
                 console.log('Setting up auction content observer...');
 
-                let lastContent = null;
+                let lastBid = null;
+                let lastBidder = null;
                 let mutationCount = 0;
 
-                // Function to get current content of auctionrunningdiv-MACRO
-                function getAuctionContent() {
+                // Function to extract current bid, bidder, and bid suggestion from input field
+                function getCurrentBidInfo() {
                     const auctionDiv = document.querySelector('.auctionrunningdiv-MACRO');
-                    if (auctionDiv) {
-                        // Get all text content from the div
-                        const allText = auctionDiv.textContent || '';
-                        // Get HTML structure
-                        const htmlContent = auctionDiv.innerHTML || '';
-                        // Get specific bid elements
-                        const bidElements = auctionDiv.querySelectorAll('text[fill="#0757ac"]');
-                        const bidderElements = auctionDiv.querySelectorAll('text[fill="black"]');
+                    if (!auctionDiv) return null;
 
-                        const bidTexts = Array.from(bidElements).map(el => el.textContent.trim()).filter(text => text);
-                        const bidderTexts = Array.from(bidderElements).map(el => el.textContent.trim()).filter(text => text && text !== 'Bid!');
-
-                        return {
-                            textContent: allText.trim(),
-                            htmlContent: htmlContent,
-                            bidElements: bidTexts,
-                            bidderElements: bidderTexts,
-                            timestamp: new Date().toISOString()
-                        };
+                    // Get bid amount from blue text elements
+                    const bidElements = auctionDiv.querySelectorAll('text[fill="#0757ac"]');
+                    let currentBid = null;
+                    for (let elem of bidElements) {
+                        const text = elem.textContent.trim();
+                        if (text && text.startsWith('$')) {
+                            currentBid = text;
+                            break;
+                        }
                     }
-                    return null;
+
+                    // Get bidder from black text elements (excluding "Bid!")
+                    const bidderElements = auctionDiv.querySelectorAll('text[fill="black"]');
+                    let currentBidder = null;
+                    for (let elem of bidderElements) {
+                        const text = elem.textContent.trim();
+                        if (text && text !== 'Bid!' && !text.startsWith('$')) {
+                            currentBidder = text;
+                            break;
+                        }
+                    }
+
+                    // Get bid suggestion from input field
+                    const bidInput = document.querySelector('input[name="bidAmount"], input[data-uname="bidAmount"]');
+                    let bidSuggestion = null;
+                    if (bidInput) {
+                        bidSuggestion = bidInput.value || bidInput.textContent;
+                        if (bidSuggestion) {
+                            bidSuggestion = bidSuggestion.trim();
+                        }
+                    }
+
+                    return {
+                        bid: currentBid,
+                        bidder: currentBidder,
+                        bidSuggestion: bidSuggestion,
+                        timestamp: new Date().toISOString()
+                    };
                 }
 
-                // Set up MutationObserver for the entire auction div
+                // Set up MutationObserver for the auction div
                 const targetNode = document.querySelector('.auctionrunningdiv-MACRO');
                 if (targetNode) {
                     console.log('Found .auctionrunningdiv-MACRO, setting up observer');
 
                     const observer = new MutationObserver(function(mutations) {
                         mutationCount++;
-                        console.log('Mutation detected #' + mutationCount + ', mutations: ' + mutations.length);
+                        console.log('Mutation detected #' + mutationCount);
 
-                        // Check if any mutation is relevant (content changes)
-                        let hasContentChange = false;
-                        mutations.forEach(function(mutation) {
-                            console.log('Mutation type: ' + mutation.type + ', target: ' + mutation.target.tagName);
-                            if (mutation.type === 'childList' ||
-                                mutation.type === 'characterData' ||
-                                (mutation.type === 'attributes' && ['class', 'style', 'fill'].includes(mutation.attributeName))) {
-                                hasContentChange = true;
+                        const bidInfo = getCurrentBidInfo();
+                        if (bidInfo && bidInfo.bid && bidInfo.bidder) {
+                            // Check if bid or bidder changed
+                            if (bidInfo.bid !== lastBid || bidInfo.bidder !== lastBidder) {
+                                console.log('BID_CHANGE:' + JSON.stringify(bidInfo));
+                                lastBid = bidInfo.bid;
+                                lastBidder = bidInfo.bidder;
                             }
-                        });
-
-                        if (hasContentChange) {
-                            console.log('Content change detected, getting auction content...');
-                            const content = getAuctionContent();
-                            if (content) {
-                                const contentStr = JSON.stringify(content);
-                                // Only log if content actually changed
-                                if (contentStr !== lastContent) {
-                                    console.log('AUCTION_CONTENT_CHANGE:' + contentStr);
-                                    lastContent = contentStr;
-                                } else {
-                                    console.log('Content unchanged, skipping log');
-                                }
-                            } else {
-                                console.log('No content retrieved from auction div');
-                            }
-                        } else {
-                            console.log('No relevant content changes in this mutation batch');
                         }
                     });
 
@@ -1148,32 +1189,12 @@ class AuctionMonitor:
                         subtree: true,
                         characterData: true,
                         attributes: true,
-                        attributeFilter: ['class', 'style', 'fill', 'x', 'y', 'text-anchor']
+                        attributeFilter: ['fill', 'x', 'y', 'text-anchor']
                     });
 
-                    console.log('Auction content observer set up successfully for .auctionrunningdiv-MACRO');
-
-                    // Test the observer with initial content
-                    setTimeout(function() {
-                        console.log('Testing observer with initial content...');
-                        const initialContent = getAuctionContent();
-                        if (initialContent) {
-                            console.log('Initial content: ' + JSON.stringify(initialContent).substring(0, 200) + '...');
-                        } else {
-                            console.log('No initial content found');
-                        }
-                    }, 1000);
-
+                    console.log('Bid change observer set up successfully');
                 } else {
-                    console.log('auctionrunningdiv-MACRO not found, MutationObserver not set up');
-                    // List all elements to debug
-                    const allDivs = document.querySelectorAll('div');
-                    console.log('Found ' + allDivs.length + ' div elements');
-                    allDivs.forEach(function(div, index) {
-                        if (div.className && div.className.includes('auction')) {
-                            console.log('Auction-related div #' + index + ': ' + div.className);
-                        }
-                    });
+                    console.log('auctionrunningdiv-MACRO not found, observer not set up');
                 }
             })();
             """
@@ -1218,41 +1239,28 @@ class AuctionMonitor:
         """Handle console messages from the page, including MutationObserver updates"""
         try:
             text = msg.text
-            if text.startswith('AUCTION_CONTENT_CHANGE:'):
-                # Parse the auction content change
-                json_data = text[23:]  # Remove 'AUCTION_CONTENT_CHANGE:' prefix
-                content_data = json.loads(json_data)
+            if text.startswith('BID_CHANGE:'):
+                # Parse the bid change update
+                json_data = text[11:]  # Remove 'BID_CHANGE:' prefix
+                bid_data = json.loads(json_data)
 
-                # Extract bid and bidder info
-                current_bid = 'N/A'
-                current_bidder = 'N/A'
-
-                if content_data.get('bidElements') and len(content_data['bidElements']) > 0:
-                    current_bid = content_data['bidElements'][0]  # Take first bid element
-
-                if content_data.get('bidderElements') and len(content_data['bidderElements']) > 0:
-                    current_bidder = content_data['bidderElements'][0]  # Take first bidder element
+                # Extract current lot information for the update
+                current_lot_title = self.current_auction_data.get('lot_title', 'N/A')
+                current_lot_number = self.current_auction_data.get('lot_number', 'N/A')
 
                 # Update current data
                 self.current_auction_data.update({
-                    'current_bid': current_bid,
-                    'current_bidder': current_bidder
+                    'current_bid': bid_data.get('bid', 'N/A'),
+                    'current_bidder': bid_data.get('bidder', 'N/A'),
+                    'bid_suggestion': bid_data.get('bidSuggestion', 'N/A')
                 })
                 self.last_update = datetime.now().isoformat()
 
-                # Print content change notification
-                print(f"🔄 AUCTION CONTENT CHANGE at {content_data.get('timestamp', 'N/A')}")
-                print(f"   💰 Bid: {current_bid}")
-                print(f"   👤 Bidder: {current_bidder}")
-                print(f"   📄 All text: {content_data.get('textContent', '')[:200]}...")
-
-                # Show bid elements if present
-                if content_data.get('bidElements') and len(content_data['bidElements']) > 0:
-                    print(f"   🎯 Bid elements: {content_data['bidElements']}")
-
-                # Show bidder elements if present
-                if content_data.get('bidderElements') and len(content_data['bidderElements']) > 0:
-                    print(f"   🏷️  Bidder elements: {content_data['bidderElements']}")
+                # Print bid change notification with suggestion
+                bid_suggestion = bid_data.get('bidSuggestion', 'N/A')
+                suggestion_text = f", Suggestion={bid_suggestion}" if bid_suggestion != 'N/A' else ""
+                print(f"🚨 BID CHANGE DETECTED: Bid={bid_data.get('bid', 'N/A')}, Bidder={bid_data.get('bidder', 'N/A')}{suggestion_text} at {bid_data.get('timestamp', 'N/A')}")
+                print(f"   📋 Lot: {current_lot_title} (#{current_lot_number})")
 
                 # Emit WebSocket event if socketio is available
                 if self.socketio:
@@ -1262,41 +1270,13 @@ class AuctionMonitor:
                             'current_auction': self.current_auction_data,
                             'last_update': self.last_update,
                             'content_change': True,
-                            'bid_elements': content_data.get('bidElements', []),
-                            'bidder_elements': content_data.get('bidderElements', []),
-                            'lot_title': self.current_auction_data.get('lot_title', 'N/A'),
-                            'lot_number': self.current_auction_data.get('lot_number', 'N/A')
+                            'lot_title': current_lot_title,
+                            'lot_number': current_lot_number,
+                            'bid_suggestion': bid_suggestion
                         })
-                        print("WebSocket event emitted for auction content change")
+                        print("WebSocket event emitted for bid change")
                     except Exception as e:
                         print(f"Failed to emit WebSocket event: {e}")
-
-            elif text.startswith('BID_CHANGE:'):
-                # Parse the bid change update (legacy)
-                json_data = text[11:]  # Remove 'BID_CHANGE:' prefix
-                bid_data = json.loads(json_data)
-
-                # Update current data
-                self.current_auction_data.update({
-                    'current_bid': bid_data.get('current_bid', 'N/A'),
-                    'current_bidder': bid_data.get('current_bidder', 'N/A')
-                })
-                self.last_update = datetime.now().isoformat()
-
-                # Print bid change notification
-                flag_info = ""
-                if bid_data.get('bid_flags') and len(bid_data['bid_flags']) > 0:
-                    flag_info = f", Flags: {len(bid_data['bid_flags'])} active"
-
-                flag_change_indicator = ""
-                if bid_data.get('flag_change'):
-                    flag_change_indicator = " 🎯 FLAG CHANGE"
-
-                print(f"🚨 BID CHANGE DETECTED{flag_change_indicator}: Bid={bid_data.get('current_bid', 'N/A')}, Bidder={bid_data.get('current_bidder', 'N/A')}{flag_info} at {bid_data.get('timestamp', 'N/A')}")
-
-                # Log detailed flag information if flags are present
-                if bid_data.get('bid_flags') and len(bid_data['bid_flags']) > 0:
-                    print(f"   📍 Bid flags detected: {bid_data['bid_flags']}")
 
             elif text.startswith('AUCTION_UPDATE:'):
                 # Parse the general auction data update (fallback)
