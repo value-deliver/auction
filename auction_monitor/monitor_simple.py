@@ -36,7 +36,7 @@ class RequestThrottler:
 class AuctionMonitor:
     """Monitors Copart auction pages and extracts real-time data"""
 
-    def __init__(self):
+    def __init__(self, socketio_instance=None):
         self.is_monitoring = False
         self.current_auction_data = None
         self.last_update = None
@@ -44,6 +44,7 @@ class AuctionMonitor:
         self.page = None
         self.auction_frame = None
         self.throttler = RequestThrottler()
+        self.socketio = socketio_instance
         logging.basicConfig(filename='auction_monitor.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     async def start_monitoring(self, auction_url):
@@ -1104,6 +1105,21 @@ class AuctionMonitor:
                 # Show bidder elements if present
                 if content_data.get('bidderElements') and len(content_data['bidderElements']) > 0:
                     print(f"   🏷️  Bidder elements: {content_data['bidderElements']}")
+
+                # Emit WebSocket event if socketio is available
+                if self.socketio:
+                    try:
+                        self.socketio.emit('auction_update', {
+                            'is_monitoring': self.is_monitoring,
+                            'current_auction': self.current_auction_data,
+                            'last_update': self.last_update,
+                            'content_change': True,
+                            'bid_elements': content_data.get('bidElements', []),
+                            'bidder_elements': content_data.get('bidderElements', [])
+                        })
+                        print("WebSocket event emitted for auction content change")
+                    except Exception as e:
+                        print(f"Failed to emit WebSocket event: {e}")
 
             elif text.startswith('BID_CHANGE:'):
                 # Parse the bid change update (legacy)

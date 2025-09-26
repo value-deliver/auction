@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copart Auction Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .card-subtitle {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .auction-id {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+        }
+
+        .current-bid {
+            background: linear-gradient(45deg, #45B7D1, #96CEB4);
+            color: white;
+        }
+
+        .current-bidder {
+            background: linear-gradient(45deg, #FECA57, #FF9FF3);
+            color: #333;
+        }
+
+        .time-remaining {
+            background: linear-gradient(45deg, #FF9F43, #EE5A24);
+            color: white;
+        }
+
+        .active-bidders {
+            background: linear-gradient(45deg, #0ABDE3, #10AC84);
+            color: white;
+        }
+
+        .status {
+            background: linear-gradient(45deg, #A29BFE, #6C5CE7);
+            color: white;
+        }
+
+        .status.active {
+            background: linear-gradient(45deg, #00B894, #00CEC9);
+        }
+
+        .status.ended {
+            background: linear-gradient(45deg, #FF7675, #D63031);
+        }
+
+        .status.paused {
+            background: linear-gradient(45deg, #FDCB6E, #E17055);
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .control-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .control-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #FF6B6B, #EE5A24);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .status-messages {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .message {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .message:last-child {
+            border-bottom: none;
+        }
+
+        .message.status {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .message.error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .last-update {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 Copart Auction Monitor</h1>
+            <p>Real-time auction monitoring dashboard</p>
+        </div>
+
+        <div class="controls">
+            <form id="monitor-form">
+                <div class="control-group">
+                    <label for="auction-url">Auction URL:</label>
+                    <input type="text" id="auction-url" name="auction_url" placeholder="e.g., /auctionDashboard?auctionDetails=350-A-84240035" value="/auctionDashboard?auctionDetails=833-A">
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary" id="start-btn">Start Monitoring</button>
+                    <button type="button" class="btn btn-danger" id="stop-btn">Stop Monitoring</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="dashboard">
+            <div class="card auction-id">
+                <div class="card-title">Auction ID</div>
+                <div class="card-value" id="auction-id">Not monitoring</div>
+                <div class="card-subtitle">Current auction</div>
+            </div>
+
+            <div class="card current-bid">
+                <div class="card-title">Current Bid</div>
+                <div class="card-value" id="current-bid">N/A</div>
+                <div class="card-subtitle">Highest bid</div>
+            </div>
+
+            <div class="card current-bidder">
+                <div class="card-title">Current Bidder</div>
+                <div class="card-value" id="current-bidder">N/A</div>
+                <div class="card-subtitle">Winning bidder</div>
+            </div>
+
+            <div class="card time-remaining">
+                <div class="card-title">Time Remaining</div>
+                <div class="card-value" id="time-remaining">N/A</div>
+                <div class="card-subtitle">Auction countdown</div>
+            </div>
+
+            <div class="card active-bidders">
+                <div class="card-title">Active Bidders</div>
+                <div class="card-value" id="active-bidders">0</div>
+                <div class="card-subtitle">Online participants</div>
+            </div>
+
+            <div class="card status" id="status-card">
+                <div class="card-title">Auction Status</div>
+                <div class="card-value" id="auction-status">Not monitoring</div>
+                <div class="card-subtitle">Current state</div>
+            </div>
+        </div>
+
+        <div class="status-messages">
+            <div class="message status">Welcome to Copart Auction Monitor</div>
+        </div>
+
+        <div class="last-update" id="last-update">
+            Last update: Never
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let isMonitoring = false;
+
+        function addMessage(message, type = 'status') {
+            const statusMessages = document.querySelector('.status-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            statusMessages.appendChild(messageDiv);
+            statusMessages.scrollTop = statusMessages.scrollHeight;
+        }
+
+        function updateAuctionData(data) {
+            if (!data) return;
+
+            document.getElementById('auction-id').textContent = data.auction_id || 'Unknown';
+            document.getElementById('current-bid').textContent = data.current_bid || 'N/A';
+            document.getElementById('current-bidder').textContent = data.current_bidder || 'N/A';
+            document.getElementById('time-remaining').textContent = data.time_remaining || 'N/A';
+            document.getElementById('active-bidders').textContent = data.active_bidders || '0';
+
+            const statusElement = document.getElementById('auction-status');
+            const statusCard = document.getElementById('status-card');
+            const status = data.status || 'unknown';
+            statusElement.textContent = status;
+
+            // Update status card color based on status
+            statusCard.className = 'card status';
+            if (status && status !== 'unknown') {
+                statusCard.classList.add(status.toLowerCase());
+            }
+
+            updateLastUpdate(data.last_update);
+        }
+
+        function updateLastUpdate(timestamp) {
+            if (timestamp) {
+                const date = new Date(timestamp);
+                document.getElementById('last-update').textContent =
+                    `Last update: ${date.toLocaleTimeString()}`;
+            }
+        }
+
+        function initWebSocket() {
+            // Initialize Socket.IO connection
+            socket = io();
+
+            socket.on('connect', function() {
+                console.log('Connected to WebSocket server');
+                addMessage('Connected to real-time server', 'status');
+            });
+
+            socket.on('disconnect', function() {
+                console.log('Disconnected from WebSocket server');
+                addMessage('Disconnected from real-time server', 'error');
+            });
+
+            socket.on('status', function(data) {
+                addMessage(data.message, 'status');
+            });
+
+            socket.on('auction_update', function(data) {
+                console.log('Received WebSocket auction update:', data);
+                if (data.is_monitoring && data.current_auction) {
+                    updateAuctionData(data.current_auction);
+                    isMonitoring = true;
+                } else if (!data.is_monitoring && isMonitoring) {
+                    // Monitoring stopped
+                    isMonitoring = false;
+                    addMessage('Monitoring stopped', 'status');
+                }
+            });
+
+            socket.on('connect_error', function(error) {
+                console.error('WebSocket connection error:', error);
+                addMessage('WebSocket connection failed, falling back to polling', 'error');
+                // Fallback to polling if WebSocket fails
+                setInterval(async function() {
+                    try {
+                        const response = await fetch('/api/status');
+                        const data = await response.json();
+                        if (data.is_monitoring && data.current_auction) {
+                            updateAuctionData(data.current_auction);
+                        }
+                    } catch (error) {
+                        console.error('Fallback polling error:', error);
+                    }
+                }, 2000);
+            });
+        }
+
+        async function startMonitoring(formData) {
+            try {
+                const response = await fetch('/api/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addMessage(result.message, 'status');
+                    isMonitoring = true;
+                    // WebSocket will handle real-time updates automatically
+                } else {
+                    addMessage(result.message, 'error');
+                }
+            } catch (error) {
+                addMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function stopMonitoring() {
+            try {
+                const response = await fetch('/api/stop', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addMessage(result.message, 'status');
+                    isMonitoring = false;
+
+                    // Reset display
+                    updateAuctionData({
+                        auction_id: 'Not monitoring',
+                        current_bid: 'N/A',
+                        current_bidder: 'N/A',
+                        time_remaining: 'N/A',
+                        active_bidders: 0,
+                        status: 'Not monitoring'
+                    });
+                } else {
+                    addMessage(result.message, 'error');
+                }
+            } catch (error) {
+                addMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('monitor-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = new URLSearchParams(formData).toString();
+            startMonitoring(data);
+        });
+
+        document.getElementById('stop-btn').addEventListener('click', function() {
+            stopMonitoring();
+        });
+
+        // Initialize
+        addMessage('Page loaded - connecting to real-time server', 'status');
+
+        // Initialize WebSocket connection
+        initWebSocket();
+    </script>
+</body>
+</html>
