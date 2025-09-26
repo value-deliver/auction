@@ -148,6 +148,8 @@ class AuctionMonitor:
 
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
+            print(f"🔄 About to attempt bid input setting...")
+
             # First, set the bid amount in the input field
             print(f"🔢 Attempting to set bid amount to: ${bid_amount}")
             bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
