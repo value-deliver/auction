@@ -393,54 +393,104 @@ async def main():
         # Launch browser with GUI for Docker/server environments
         # Set DISPLAY for virtual framebuffer (e.g., Xvfb :99)
         os.environ.setdefault('DISPLAY', ':99')
-        browser = await p.chromium.launch(headless=False)  # Set to True for headless mode when running locally
-
-        context = await browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            viewport={'width': 1366, 'height': 768},
-            locale='en-US',
-            timezone_id='America/New_York',
-            permissions=['geolocation'],
-            geolocation={'latitude': 40.7128, 'longitude': -74.0060},  # New York coordinates
-            extra_http_headers={
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
-                'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
-            },
-            # Additional anti-detection measures
-            bypass_csp=True,
-            ignore_https_errors=True,
-            # Reduce automation detection
-            has_touch=False,  # Most desktop users don't have touch
-            is_mobile=False,
+        # Browser launch with minimal anti-detection measures (like monitor_simple.py)
+        browser = await p.chromium.launch(
+            headless=False  # Keep visible for debugging
         )
+
+        # Create context similar to monitor_simple.py - minimal configuration to avoid detection
+        context = await browser.new_context()
 
         page = await context.new_page()
 
+        # Try to load saved session first (like monitor_simple.py)
+        session_loaded = False
         try:
-            # Navigate to IAAI login page with retry logic
+            if os.path.exists('iaai_session.json'):
+                with open('iaai_session.json', 'r') as f:
+                    cookies = json.load(f)
+                await context.add_cookies(cookies)
+                print('Session cookies loaded')
+                session_loaded = True
+        except Exception as e:
+            print(f'Failed to load session cookies: {e}')
+
+        try:
+            # Navigate to IAAI dashboard first, which will redirect to login if not authenticated
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    print(f"Navigating to IAAI login page (attempt {attempt + 1}/{max_retries})...")
-                    response = await page.goto("https://login.iaai.com/Identity/Account/Login", timeout=60000)  # 2 minutes
+                    print(f"Navigating to IAAI dashboard (attempt {attempt + 1}/{max_retries})...")
+                    response = await page.goto("https://www.iaai.com/Dashboard/Default", timeout=60000)  # 2 minutes
                     print(f"Response status: {response.status if response else 'No response'}")
                     print("Waiting for page to load...")
                     await page.wait_for_load_state('domcontentloaded', timeout=30000)
-                    # Wait a bit more for dynamic content
-                    await asyncio.sleep(2)
-                    break  # Success, exit retry loop
+                    # Wait a bit more for dynamic content and potential redirect
+                    await asyncio.sleep(5)  # Increased wait time for CAPTCHA to load
+
+                    # Check for CAPTCHA immediately after navigation
+                    print("Checking for CAPTCHA on dashboard page...")
+                    captcha_detected = await detect_captcha(page)
+                    if captcha_detected:
+                        print("CAPTCHA detected on dashboard - attempting to solve...")
+                        captcha_solved = await solve_captcha(page)
+                        if captcha_solved:
+                            print("CAPTCHA solved successfully!")
+                            # Wait for page to reload after CAPTCHA
+                            await asyncio.sleep(3)
+                        else:
+                            print("CAPTCHA solving failed - manual intervention required")
+                            print("Please solve the CAPTCHA in the browser window")
+                            await asyncio.sleep(120)  # 2 minutes for manual solving
+
+                    # Check if we were redirected to login page
+                    current_url = page.url
+                    if "login.iaai.com" in current_url or "Identity/Account/Login" in current_url:
+                        print("Successfully redirected to login page")
+                        break
+                    elif "dashboard" in current_url.lower() and "iaai.com" in current_url:
+                        print("Already authenticated - staying on dashboard")
+                        print("Checking for CAPTCHA iframes on dashboard...")
+
+                        # Wait a bit more for dynamic content to load
+                        await asyncio.sleep(5)
+
+                        # Look for CAPTCHA iframes that might appear after login
+                        captcha_iframes = page.locator('iframe')
+                        iframe_count = await captcha_iframes.count()
+                        print(f"Found {iframe_count} iframes on dashboard")
+
+                        captcha_found = False
+                        for i in range(iframe_count):
+                            try:
+                                iframe = captcha_iframes.nth(i)
+                                src = await iframe.get_attribute('src')
+                                if src and ('captcha' in src.lower() or 'challenge' in src.lower()):
+                                    print(f"CAPTCHA iframe found: {src}")
+                                    captcha_found = True
+                                    break
+                            except:
+                                continue
+
+                        if captcha_found:
+                            print("CAPTCHA iframe detected on dashboard - manual intervention required")
+                            print("Please solve the CAPTCHA in the browser window")
+                            # Keep browser open for manual CAPTCHA solving
+                            await asyncio.sleep(120)  # 2 minutes for manual solving
+                        else:
+                            print("No CAPTCHA iframes found on dashboard - login successful!")
+
+                        break
+                    else:
+                        print(f"Unexpected URL after dashboard navigation: {current_url}")
+                        # If we're not on login page or dashboard, try direct navigation to login
+                        if attempt == max_retries - 1:
+                            print("Trying direct navigation to login page...")
+                            response = await page.goto("https://login.iaai.com/Identity/Account/Login", timeout=60000)
+                            await page.wait_for_load_state('domcontentloaded', timeout=30000)
+                            await asyncio.sleep(2)
+                        break
+
                 except Exception as e:
                     print(f"Navigation error: {e}")
                     if attempt == max_retries - 1:
@@ -462,108 +512,154 @@ async def main():
             else:
                 print("Email field NOT found in page content")
 
+            # Check if this is an OAuth redirect page
+            current_url = page.url
+            if '/connect/authorize' in current_url:
+                print("Detected OAuth authorization page, waiting for redirect to login form...")
+                # Wait for redirect to actual login form
+                try:
+                    await page.wait_for_url(lambda url: '/connect/authorize' not in url and 'login' in url, timeout=10000)
+                    print(f"Redirected to login form: {page.url}")
+                    # Re-check content after redirect
+                    content = await page.content()
+                    print(f'Page content length after redirect: {len(content)}')
+                    if 'email' in content.lower():
+                        print("Email field found after redirect")
+                    else:
+                        print("Email field still not found after redirect")
+                except Exception as e:
+                    print(f"No redirect to login form occurred: {e}")
+                    print("OAuth flow may require different handling")
+
+            # Handle cookie consent if present (like monitor_simple.py)
+            print('Checking for cookie consent popup...')
+            try:
+                # Step 1: Look for "Manage Options" button to open detailed preferences
+                manage_options_selectors = [
+                    'button[data-testid*="manage"]',
+                    'button[id*="manage"]',
+                    '.fc-button[data-testid*="manage"]'
+                ]
+
+                manage_clicked = False
+                for selector in manage_options_selectors:
+                    try:
+                        manage_button = page.locator(selector).first
+                        if await manage_button.is_visible(timeout=2000):
+                            print(f"Found 'Manage Options' button with selector: {selector}")
+                            await manage_button.click()
+                            await asyncio.sleep(random.uniform(1, 2))
+                            manage_clicked = True
+                            break
+                    except Exception as e:
+                        print(f"Error with manage selector {selector}: {e}")
+                        continue
+
+                # Also try to find by text content
+                if not manage_clicked:
+                    try:
+                        all_buttons = page.locator('button')
+                        button_count = await all_buttons.count()
+                        for i in range(button_count):
+                            button_text = await all_buttons.nth(i).text_content()
+                            if button_text and 'manage' in button_text.lower():
+                                print(f"Found 'Manage Options' button with text: '{button_text}'. Clicking it...")
+                                await all_buttons.nth(i).click()
+                                await asyncio.sleep(random.uniform(1, 2))
+                                manage_clicked = True
+                                break
+                    except Exception as e:
+                        print(f"Error searching for manage buttons by text: {e}")
+
+                # Step 2: If manage options was clicked, handle the detailed preferences dialog
+                if manage_clicked:
+                    print("Managing cookie preferences...")
+
+                    # Wait for the preferences dialog to appear
+                    await asyncio.sleep(random.uniform(1, 2))
+
+                    # Uncheck all consent checkboxes that are currently checked
+                    try:
+                        consent_checkboxes = page.locator('input.fc-preference-consent.purpose:checked')
+                        checked_count = await consent_checkboxes.count()
+                        print(f"Found {checked_count} checked consent checkboxes to uncheck.")
+
+                        for i in range(checked_count):
+                            try:
+                                await consent_checkboxes.nth(i).click()
+                                await asyncio.sleep(random.uniform(0.1, 0.3))
+                            except Exception as e:
+                                print(f"Error unchecking consent checkbox {i}: {e}")
+                    except Exception as e:
+                        print(f"Error handling consent checkboxes: {e}")
+
+                    # Click "Confirm choices" button
+                    confirm_selectors = [
+                        '.fc-button.fc-confirm-choices.fc-primary-button',
+                        'button[data-testid*="confirm"]'
+                    ]
+
+                    confirm_clicked = False
+                    for selector in confirm_selectors:
+                        try:
+                            confirm_button = page.locator(selector).first
+                            if await confirm_button.is_visible(timeout=2000):
+                                print(f"Clicking 'Confirm choices' button with selector: {selector}")
+                                await confirm_button.click()
+                                await asyncio.sleep(random.uniform(2, 4))
+                                confirm_clicked = True
+                                break
+                        except Exception as e:
+                            print(f"Error with confirm selector {selector}: {e}")
+                            continue
+
+                    if not confirm_clicked:
+                        # Try by text
+                        try:
+                            all_buttons = page.locator('button')
+                            button_count = await all_buttons.count()
+                            for i in range(button_count):
+                                button_text = await all_buttons.nth(i).text_content()
+                                if button_text and 'confirm' in button_text.lower():
+                                    print(f"Found 'Confirm choices' button with text: '{button_text}'. Clicking it...")
+                                    await all_buttons.nth(i).click()
+                                    await asyncio.sleep(random.uniform(2, 4))
+                                    confirm_clicked = True
+                                    break
+                        except Exception as e:
+                            print(f"Error searching for confirm buttons by text: {e}")
+
+                    if confirm_clicked:
+                        print("Cookie preferences configured and confirmed.")
+                    else:
+                        print("Could not find 'Confirm choices' button.")
+                else:
+                    print("No 'Manage Options' button found.")
+
+            except Exception as e:
+                print(f"Cookie consent handling error: {e}")
+
             # Wait for the login form to load (dynamic elements)
             await page.wait_for_selector('input[name="Input.Email"]', timeout=62000)
 
-            # Add human-like behavior: scroll a bit
-            await page.evaluate("window.scrollTo(0, " + str(random.randint(50, 150)) + ")")
-            await asyncio.sleep(random.uniform(1, 2))
-
-            # Click on email field to focus
+            # Fill login form (simplified approach like monitor_simple.py)
+            print('Filling login form...')
             await page.click('input[name="Input.Email"]')
             await asyncio.sleep(random.uniform(0.5, 1.5))
+            await page.fill('input[name="Input.Email"]', USERNAME)
+            await asyncio.sleep(random.uniform(2, 5))
 
-            # Type email character by character with random delays (more human-like)
-            for char in USERNAME:
-                await page.type('input[name="Input.Email"]', char, delay=random.randint(100, 300))
-            await asyncio.sleep(random.uniform(1, 3))
-
-            # Click on password field to focus
             await page.click('input[name="Input.Password"]')
             await asyncio.sleep(random.uniform(0.5, 1.5))
+            await page.fill('input[name="Input.Password"]', PASSWORD)
+            await asyncio.sleep(random.uniform(2, 5))
 
-            # Type password character by character
-            for char in PASSWORD:
-                await page.type('input[name="Input.Password"]', char, delay=random.randint(150, 400))
-            await asyncio.sleep(random.uniform(1, 3))
-
-            # Maybe check "Remember Me" checkbox sometimes
-            if random.choice([True, False]):
-                try:
-                    await page.click('input[name="Input.RememberMe"]')
-                    await asyncio.sleep(random.uniform(0.5, 1))
-                except:
-                    pass  # Checkbox might not be present
-
-            # Add random mouse movements to simulate human behavior
-            for _ in range(random.randint(2, 5)):
-                await page.mouse.move(random.randint(100, 800), random.randint(100, 600))
-                await asyncio.sleep(random.uniform(0.5, 1.5))
-
-            # Maybe hover over some elements randomly
-            try:
-                # Find some random clickable elements and hover over them briefly
-                links = page.locator('a')
-                if await links.count() > 0:
-                    random_link = links.nth(random.randint(0, min(5, await links.count() - 1)))
-                    await random_link.hover()
-                    await asyncio.sleep(random.uniform(0.5, 2))
-            except:
-                pass
-
-            # Submit the form (triggers POST request)
-            await asyncio.sleep(random.uniform(5, 12))  # Longer pause before submit
-
-            # Debug: Check if form fields are filled
-            email_value = await page.input_value('input[name="Input.Email"]')
-            password_value = await page.input_value('input[name="Input.Password"]')
-            print(f"Email field value: '{email_value}'")
-            print(f"Password field value: '{password_value[:3] if password_value else 'empty'}***'")
-
-            # Use the login button
-            login_button_locator = page.locator('button[type="submit"]').first
-
-            # Simulate realistic mouse movement to the submit button
-            print("Moving mouse to submit button...")
-            button_box = await login_button_locator.bounding_box()
-            if button_box:
-                # Get current mouse position (start from a random position if needed)
-                current_pos = await page.evaluate("() => ({ x: window.mouseX || 0, y: window.mouseY || 0 })")
-
-                # If no current position, start from top-left area
-                if not current_pos or (current_pos['x'] == 0 and current_pos['y'] == 0):
-                    start_x, start_y = random.randint(50, 200), random.randint(50, 200)
-                else:
-                    start_x, start_y = current_pos['x'], current_pos['y']
-
-                # Target position (center of button)
-                target_x = button_box['x'] + button_box['width'] / 2
-                target_y = button_box['y'] + button_box['height'] / 2
-
-                # Simulate human-like mouse movement with multiple steps
-                steps = random.randint(5, 10)
-                for step in range(steps):
-                    # Calculate intermediate position with some randomness
-                    progress = (step + 1) / steps
-                    intermediate_x = start_x + (target_x - start_x) * progress + random.randint(-10, 10)
-                    intermediate_y = start_y + (target_y - start_y) * progress + random.randint(-10, 10)
-
-                    # Ensure coordinates stay within viewport bounds
-                    viewport = page.viewport_size
-                    intermediate_x = max(0, min(intermediate_x, viewport['width']))
-                    intermediate_y = max(0, min(intermediate_y, viewport['height']))
-
-                    await page.mouse.move(intermediate_x, intermediate_y)
-                    await asyncio.sleep(random.uniform(0.05, 0.15))  # Small delay between movements
-
-                # Final precise movement to button center
-                await page.mouse.move(target_x, target_y)
-                await asyncio.sleep(random.uniform(0.2, 0.5))
-
-            # Simulate manual hover and click
-            await login_button_locator.hover()
-            await asyncio.sleep(random.uniform(3, 5))  # Longer pause to show hover styles
-            await login_button_locator.click(timeout=random.randint(10000, 30000))
+            # Submit login (simplified approach like monitor_simple.py)
+            print('Submitting login...')
+            login_btn = page.locator('button[type="submit"]').first
+            await login_btn.hover()
+            await asyncio.sleep(random.uniform(3, 5))
+            await login_btn.click(timeout=random.randint(10000, 30000))
 
             # Wait for form submission and check result
             try:
@@ -596,81 +692,53 @@ async def main():
                         continue
 
                 if "login.iaai.com" not in current_url and login_successful:
-                    print(f"Post-login page title: {await page.title()}")
-                    print(f"Post-login URL: {current_url}")
+                    print("Login successful!")
+                    print(f'Current URL: {current_url}')
 
-                    # Wait for dashboard to fully load and check for CAPTCHA
-                    print("Waiting for dashboard to load completely...")
-                    await asyncio.sleep(3)  # Give time for any redirects or dynamic content
+                    # Check if we're on dashboard and look for CAPTCHA iframes
+                    if "dashboard" in current_url.lower() or "iaai.com" in current_url:
+                        print("On dashboard page, checking for CAPTCHA iframes...")
 
-                    # Check current URL again (might have redirected)
-                    final_url = page.url
-                    print(f"Final dashboard URL: {final_url}")
+                        # Look for CAPTCHA iframes that might appear after login
+                        captcha_iframes = page.locator('iframe')
+                        iframe_count = await captcha_iframes.count()
+                        print(f"Found {iframe_count} iframes on dashboard")
 
-                    # Check for CAPTCHA on dashboard page - multiple checks with delays
-                    print("Checking for CAPTCHA on dashboard page...")
+                        captcha_found = False
+                        for i in range(iframe_count):
+                            try:
+                                iframe = captcha_iframes.nth(i)
+                                src = await iframe.get_attribute('src')
+                                if src and ('captcha' in src.lower() or 'challenge' in src.lower()):
+                                    print(f"CAPTCHA iframe found: {src}")
+                                    captcha_found = True
+                                    break
+                            except:
+                                continue
 
-                    # First check immediately
-                    captcha_detected = await detect_captcha(page)
-                    if not captcha_detected:
-                        # Wait a bit and check again (CAPTCHA might load dynamically)
-                        print("Waiting for potential dynamic CAPTCHA loading...")
-                        await asyncio.sleep(5)
-                        captcha_detected = await detect_captcha(page)
-
-                    if not captcha_detected:
-                        # Final check after more waiting
-                        await asyncio.sleep(3)
-                        captcha_detected = await detect_captcha(page)
-
-                    if captcha_detected:
-                        if captcha_detected == "incapsula_block":
-                            print("INCAPSULA WAF IFRAME BLOCK DETECTED!")
-                            print("This is a serious security block, not just a CAPTCHA.")
-                            print("Incapsula has flagged this session as suspicious.")
-                            print("")
-                            print("RECOMMENDED ACTIONS:")
-                            print("1. Wait several hours before trying again")
-                            print("2. Use a different IP address")
-                            print("3. Reduce login frequency")
-                            print("4. Consider using residential proxies")
-                            print("5. The browser will stay open for manual inspection")
-                            await asyncio.sleep(600)  # 10 minutes to inspect
-                        elif captcha_detected == "chrome_error_block":
-                            print("INCAPSULA CHROME ERROR BLOCK DETECTED!")
-                            print("Incapsula is blocking requests at the browser level.")
-                            print("This is the most serious type of block.")
-                            print("")
-                            print("CRITICAL ISSUES DETECTED:")
-                            print("- Browser-level blocking (chrome-error:// URL)")
-                            print("- Incapsula WAF is rejecting all requests")
-                            print("")
-                            print("IMMEDIATE ACTIONS REQUIRED:")
-                            print("1. STOP all automation immediately")
-                            print("2. Wait 24-48 hours before any attempts")
-                            print("3. Use a completely different IP address")
-                            print("4. Consider residential proxies or VPN")
-                            print("5. Reduce automation frequency significantly")
-                            print("6. The account may be flagged - manual login may also fail")
-                            print("")
-                            print("The browser will stay open for inspection, but automation should stop.")
-                            await asyncio.sleep(1200)  # 20 minutes for serious inspection
+                        if captcha_found:
+                            print("CAPTCHA iframe detected on dashboard - manual intervention required")
+                            print("Please solve the CAPTCHA in the browser window")
+                            # Keep browser open for manual CAPTCHA solving
+                            await asyncio.sleep(120)  # 2 minutes for manual solving
                         else:
-                            print("CAPTCHA detected on dashboard page. Attempting to solve...")
-                            captcha_solved = await solve_captcha(page)
-                            if not captcha_solved:
-                                print("CAPTCHA solving failed. Manual intervention required.")
-                                print("Please complete the CAPTCHA in the browser window.")
-                                print("The script will wait for you to complete it manually.")
-                                # Keep browser open for manual solving
-                                await asyncio.sleep(300)  # 5 minutes for manual solving
-                            else:
-                                print("CAPTCHA solved successfully! Continuing...")
-                                await asyncio.sleep(2)  # Wait for any post-CAPTCHA redirects
-                    else:
-                        print("No security challenges detected on dashboard page.")
+                            print("No CAPTCHA iframes found on dashboard")
+
+                    # Add pause after login before navigating (like monitor_simple.py)
+                    print('Pausing after login to appear more human-like...')
+                    await asyncio.sleep(random.uniform(5, 10))
+
+                    # Save session cookies for future use (like monitor_simple.py)
+                    try:
+                        cookies = await context.cookies()
+                        with open('iaai_session.json', 'w') as f:
+                            json.dump(cookies, f, indent=2)
+                        print('Session cookies saved')
+                    except Exception as e:
+                        print(f'Failed to save session cookies: {e}')
+
                 else:
-                    print("Login appears to have failed or is still processing")
+                    print("Login may have failed. Check for errors.")
 
             except Exception as e:
                 print(f"Error checking login result: {e}")
