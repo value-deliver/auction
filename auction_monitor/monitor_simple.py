@@ -149,10 +149,27 @@ class AuctionMonitor:
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
             print(f"🎯 Skipping bid input setting, going straight to button detection...")
-            # Try to list all buttons in the iframe first for debugging
+            # Try to get the actual frame object instead of using FrameLocator
+            print(f"🔍 Getting actual iframe frame object...")
+            target_frame = None
+            frames = self.page.frames
+            for frame in frames:
+                if 'g2auction.copart.com' in frame.url:
+                    target_frame = frame
+                    print(f"✅ Found target frame: {frame.url}")
+                    break
+
+            if not target_frame:
+                print(f"❌ Could not find g2auction.copart.com frame")
+                print(f"📋 Available frames:")
+                for i, frame in enumerate(frames[1:], 1):  # skip main frame
+                    print(f"  Frame {i}: {frame.url}")
+                return False
+
+            # Try to list all buttons in the iframe using the actual frame
             print(f"🔍 Listing all buttons in iframe for debugging...")
             try:
-                all_buttons = self.auction_frame.locator('button')
+                all_buttons = target_frame.locator('button')
                 button_count = await all_buttons.count()
                 print(f"📊 Found {button_count} total buttons in iframe")
 
@@ -187,10 +204,14 @@ class AuctionMonitor:
             bid_button = None
             found_selector = None
 
+            # Use the actual frame object for button detection
+            bid_button = None
+            found_selector = None
+
             for selector in bid_button_selectors:
                 try:
                     print(f"🔍 Trying bid button selector: {selector}")
-                    candidate_button = self.auction_frame.locator(selector).first
+                    candidate_button = target_frame.locator(selector).first
 
                     # Check if element exists first
                     count = await candidate_button.count()
