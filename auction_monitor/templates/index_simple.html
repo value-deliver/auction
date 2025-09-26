@@ -158,6 +158,40 @@
             border-color: #667eea;
         }
 
+        .bid-controls {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .bid-amount-input {
+            flex: 1;
+        }
+
+        .bid-button {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .bid-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .bid-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         .button-group {
             display: flex;
             gap: 10px;
@@ -274,6 +308,14 @@
                     <button type="button" class="btn btn-danger" id="stop-btn">Stop Monitoring</button>
                 </div>
             </form>
+
+            <div class="control-group">
+                <label for="bid-amount">Bid Amount:</label>
+                <div class="bid-controls">
+                    <input type="number" id="bid-amount" class="bid-amount-input" placeholder="Enter bid amount" min="0" step="1">
+                    <button type="button" class="bid-button" id="place-bid-btn" disabled>Place Bid</button>
+                </div>
+            </div>
         </div>
 
         <div class="dashboard">
@@ -391,9 +433,11 @@
                 if (data.is_monitoring && data.current_auction) {
                     updateAuctionData(data.current_auction);
                     isMonitoring = true;
+                    updateBidButtonState();
                 } else if (!data.is_monitoring && isMonitoring) {
                     // Monitoring stopped
                     isMonitoring = false;
+                    updateBidButtonState();
                     addMessage('Monitoring stopped', 'status');
                 }
             });
@@ -431,6 +475,7 @@
                 if (result.success) {
                     addMessage(result.message, 'status');
                     isMonitoring = true;
+                    updateBidButtonState();
                     // WebSocket will handle real-time updates automatically
                 } else {
                     addMessage(result.message, 'error');
@@ -451,6 +496,7 @@
                 if (result.success) {
                     addMessage(result.message, 'status');
                     isMonitoring = false;
+                    updateBidButtonState();
 
                     // Reset display
                     updateAuctionData({
@@ -469,6 +515,35 @@
             }
         }
 
+        async function placeBid(bidAmount) {
+            try {
+                const response = await fetch('/api/bid', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ bid_amount: bidAmount })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addMessage(`Bid placed: $${bidAmount}`, 'status');
+                } else {
+                    addMessage(`Bid failed: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage(`Bid error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateBidButtonState() {
+            const bidButton = document.getElementById('place-bid-btn');
+            const bidAmount = document.getElementById('bid-amount').value;
+
+            bidButton.disabled = !isMonitoring || !bidAmount || parseFloat(bidAmount) <= 0;
+        }
+
         // Event listeners
         document.getElementById('monitor-form').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -479,6 +554,17 @@
 
         document.getElementById('stop-btn').addEventListener('click', function() {
             stopMonitoring();
+        });
+
+        document.getElementById('place-bid-btn').addEventListener('click', function() {
+            const bidAmount = document.getElementById('bid-amount').value;
+            if (bidAmount && parseFloat(bidAmount) > 0) {
+                placeBid(parseFloat(bidAmount));
+            }
+        });
+
+        document.getElementById('bid-amount').addEventListener('input', function() {
+            updateBidButtonState();
         });
 
         // Initialize

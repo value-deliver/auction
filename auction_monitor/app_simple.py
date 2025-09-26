@@ -134,6 +134,33 @@ def stop_monitoring():
 
     return jsonify({'success': True, 'message': 'Stopped monitoring'})
 
+@app.route('/api/bid', methods=['POST'])
+def place_bid():
+    """Place a bid on the current auction"""
+    global monitor
+
+    if not monitor or not monitor.is_monitoring:
+        return jsonify({'success': False, 'message': 'No active auction monitoring'})
+
+    try:
+        data = request.get_json()
+        bid_amount = data.get('bid_amount')
+
+        if not bid_amount or bid_amount <= 0:
+            return jsonify({'success': False, 'message': 'Valid bid amount is required'})
+
+        # Place bid asynchronously
+        success = asyncio.run(monitor.place_bid(bid_amount))
+
+        if success:
+            return jsonify({'success': True, 'message': f'Bid placed: ${bid_amount}'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to place bid'})
+
+    except Exception as e:
+        print(f"Bid error: {str(e)}")
+        return jsonify({'success': False, 'message': f'Bid failed: {str(e)}'})
+
 def start_monitoring_thread(auction_url):
     """Start monitoring in a separate thread"""
     global monitor

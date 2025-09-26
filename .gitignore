@@ -45,3 +45,18 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Debug files
+debug_*.png
+*session.json
+
+# HTML captures for analysis
+view-source_*.html
+*view-source*.html
+Auto Auction*.html
+Auto Auction*_files/
+auctionDashboard*.html
+auctions_view-source*.html
+iaai_home_view-source*.html
+pre_auction_view-source*.html
+wathlist-view-source*.html

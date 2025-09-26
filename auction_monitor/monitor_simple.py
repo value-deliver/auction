@@ -83,6 +83,90 @@ class AuctionMonitor:
         """Stop monitoring"""
         self.is_monitoring = False
 
+    async def place_bid(self, bid_amount):
+        """Place a bid on the current auction"""
+        try:
+            if not self.auction_frame:
+                print("No auction frame available for bidding")
+                return False
+
+            print(f"Attempting to place bid: ${bid_amount}")
+
+            # First, set the bid amount in the input field
+            bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
+            try:
+                bid_input = self.auction_frame.locator(bid_input_selector).first
+                await bid_input.wait_for(timeout=5000)
+                await bid_input.fill(str(bid_amount))
+                print(f"Set bid amount to: ${bid_amount}")
+                await asyncio.sleep(0.5)  # Brief pause
+            except Exception as e:
+                print(f"Failed to set bid amount: {e}")
+                return False
+
+            # Click the bid button
+            bid_button_selector = 'button[data-uname="bidCurrentLot"], button[data-id]'
+            try:
+                bid_button = self.auction_frame.locator(bid_button_selector).first
+                await bid_button.wait_for(timeout=5000)
+                await bid_button.click()
+                print("Clicked bid button")
+                await asyncio.sleep(1)  # Wait for bid to process
+            except Exception as e:
+                print(f"Failed to click bid button: {e}")
+                return False
+
+            # Wait a moment for any confirmation or error messages
+            await asyncio.sleep(2)
+
+            # Check for success/error indicators
+            success_indicators = [
+                'text="bid accepted"',
+                'text="bid placed"',
+                'text="successful"',
+                '.bid-success',
+                '.bid-confirmation'
+            ]
+
+            error_indicators = [
+                'text="bid rejected"',
+                'text="bid failed"',
+                'text="invalid bid"',
+                'text="bid too low"',
+                '.bid-error',
+                '.bid-rejected'
+            ]
+
+            # Check for errors first
+            for indicator in error_indicators:
+                try:
+                    error_elem = self.auction_frame.locator(indicator).first
+                    if await error_elem.is_visible(timeout=2000):
+                        error_text = await error_elem.text_content()
+                        print(f"Bid error detected: {error_text}")
+                        return False
+                except:
+                    continue
+
+            # Check for success
+            for indicator in success_indicators:
+                try:
+                    success_elem = self.auction_frame.locator(indicator).first
+                    if await success_elem.is_visible(timeout=2000):
+                        success_text = await success_elem.text_content()
+                        print(f"Bid success detected: {success_text}")
+                        return True
+                except:
+                    continue
+
+            # If no clear success/error indicators, assume success if no errors found
+            print("Bid placed (no explicit confirmation/error detected)")
+            return True
+
+        except Exception as e:
+            print(f"Bid placement failed: {e}")
+            return False
+
     def _load_env(self):
         """Load environment variables"""
         if os.path.exists('../.env'):
