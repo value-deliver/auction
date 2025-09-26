@@ -155,8 +155,12 @@ class AuctionMonitor:
             bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
             try:
                 print(f"🔍 Looking for bid input with selector: {bid_input_selector}")
+                print(f"🔍 Auction frame type: {type(self.auction_frame)}")
+                print(f"🔍 Auction frame: {self.auction_frame}")
+
                 bid_input = self.auction_frame.locator(bid_input_selector).first
                 print(f"📍 Found bid input element: {bid_input}")
+                print(f"🔍 Bid input locator details: {bid_input}")
 
                 # Check if element exists before waiting
                 count = await bid_input.count()
