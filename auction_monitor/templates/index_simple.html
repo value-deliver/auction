@@ -421,8 +421,9 @@
             const bidSuggestion = data.bid_suggestion;
             if (bidSuggestion && bidSuggestion !== 'N/A') {
                 const bidAmountInput = document.getElementById('bid-amount');
-                // Always update with the latest suggestion (remove any $ prefix if present)
-                const cleanSuggestion = bidSuggestion.replace(/^\$/, '');
+                // Clean the suggestion: remove $ prefix, commas, and any non-numeric characters except decimal point
+                const cleanSuggestion = bidSuggestion.replace(/^\$/, '').replace(/,/g, '').replace(/[^\d.]/g, '');
+                console.log('Updating bid input with suggestion:', bidSuggestion, '->', cleanSuggestion);
                 bidAmountInput.value = cleanSuggestion;
                 updateBidButtonState();
             }

@@ -1249,12 +1249,15 @@ class AuctionMonitor:
                 current_lot_number = self.current_auction_data.get('lot_number', 'N/A')
 
                 # Update current data
+                bid_suggestion = bid_data.get('bidSuggestion', 'N/A')
                 self.current_auction_data.update({
                     'current_bid': bid_data.get('bid', 'N/A'),
                     'current_bidder': bid_data.get('bidder', 'N/A'),
-                    'bid_suggestion': bid_data.get('bidSuggestion', 'N/A')
+                    'bid_suggestion': bid_suggestion
                 })
                 self.last_update = datetime.now().isoformat()
+
+                print(f"Updated auction data - Bid: {bid_data.get('bid', 'N/A')}, Suggestion: {bid_suggestion}")
 
                 # Print bid change notification with suggestion
                 bid_suggestion = bid_data.get('bidSuggestion', 'N/A')
