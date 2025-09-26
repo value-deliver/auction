@@ -1259,12 +1259,23 @@ class AuctionMonitor:
                 # Print bid change notification with suggestion
                 bid_suggestion = bid_data.get('bidSuggestion', 'N/A')
                 suggestion_text = f", Suggestion={bid_suggestion}" if bid_suggestion != 'N/A' else ""
-                print(f"🚨 BID CHANGE DETECTED: Bid={bid_data.get('bid', 'N/A')}, Bidder={bid_data.get('bidder', 'N/A')}{suggestion_text} at {bid_data.get('timestamp', 'N/A')}")
-                print(f"   📋 Lot: {current_lot_title} (#{current_lot_number})")
+                console_message = f"🚨 BID CHANGE DETECTED: Bid={bid_data.get('bid', 'N/A')}, Bidder={bid_data.get('bidder', 'N/A')}{suggestion_text} at {bid_data.get('timestamp', 'N/A')}"
+                lot_message = f"   📋 Lot: {current_lot_title} (#{current_lot_number})"
 
-                # Emit WebSocket event if socketio is available
+                print(console_message)
+                print(lot_message)
+
+                # Emit WebSocket event for bid change notification
                 if self.socketio:
                     try:
+                        # Emit the formatted message to display in web interface
+                        self.socketio.emit('bid_change_notification', {
+                            'message': console_message + '\n' + lot_message,
+                            'type': 'bid_change',
+                            'timestamp': bid_data.get('timestamp', datetime.now().isoformat())
+                        })
+
+                        # Also emit regular auction update
                         self.socketio.emit('auction_update', {
                             'is_monitoring': self.is_monitoring,
                             'current_auction': self.current_auction_data,
@@ -1274,7 +1285,7 @@ class AuctionMonitor:
                             'lot_number': current_lot_number,
                             'bid_suggestion': bid_suggestion
                         })
-                        print("WebSocket event emitted for bid change")
+                        print("WebSocket events emitted for bid change")
                     except Exception as e:
                         print(f"Failed to emit WebSocket event: {e}")
 

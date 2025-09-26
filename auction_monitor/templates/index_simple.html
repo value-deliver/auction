@@ -264,6 +264,14 @@
             border-color: #f5c6cb;
         }
 
+        .message.bid_change {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            font-weight: bold;
+            white-space: pre-line;
+        }
+
         .last-update {
             text-align: center;
             color: rgba(255, 255, 255, 0.8);
@@ -461,6 +469,12 @@
                     updateBidButtonState();
                     addMessage('Monitoring stopped', 'status');
                 }
+            });
+
+            socket.on('bid_change_notification', function(data) {
+                console.log('Received bid change notification:', data);
+                // Display the formatted bid change message in the status area
+                addMessage(data.message, 'bid_change');
             });
 
             socket.on('connect_error', function(error) {
