@@ -421,12 +421,10 @@
             const bidSuggestion = data.bid_suggestion;
             if (bidSuggestion && bidSuggestion !== 'N/A') {
                 const bidAmountInput = document.getElementById('bid-amount');
-                // Only update if the field is empty or contains the old suggestion
-                const currentValue = bidAmountInput.value;
-                if (!currentValue || currentValue === '' || currentValue === bidSuggestion) {
-                    bidAmountInput.value = bidSuggestion;
-                    updateBidButtonState();
-                }
+                // Always update with the latest suggestion (remove any $ prefix if present)
+                const cleanSuggestion = bidSuggestion.replace(/^\$/, '');
+                bidAmountInput.value = cleanSuggestion;
+                updateBidButtonState();
             }
 
             const statusElement = document.getElementById('auction-status');
