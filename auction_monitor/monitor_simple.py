@@ -167,14 +167,31 @@ class AuctionMonitor:
             print(f"🎯 Looking for bid button with selector: button[data-uname='bidCurrentLot']")
             try:
                 bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]').first
-                is_visible = await bid_button.is_visible(timeout=3000)
+                print(f"📍 Created button locator")
+
+                # First check if element exists
+                count = await bid_button.count()
+                print(f"📊 Button elements found: {count}")
+
+                if count == 0:
+                    print(f"❌ No bid button elements found with selector")
+                    return False
+
+                # Now check visibility with shorter timeout
+                print(f"👁️ Checking button visibility...")
+                is_visible = await bid_button.is_visible(timeout=2000)
+                print(f"👁️ Button visibility result: {is_visible}")
+
                 if is_visible:
                     print(f"✅ BID BUTTON FOUND and visible!")
                 else:
-                    print(f"⚠️ Bid button found but not visible")
+                    print(f"⚠️ Bid button exists but not visible (auction may not be live)")
                     return False
+
             except Exception as e:
                 print(f"❌ Bid button selector failed: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
 
             if not bid_button:
