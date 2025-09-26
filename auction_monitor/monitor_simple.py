@@ -155,7 +155,8 @@ class AuctionMonitor:
                 'button[data-id="345"]',
                 'button.themed.btn.btn-primary.btn-sm.btn-auctions.disableEnter',
                 'button[type="submit"][data-uname="bidCurrentLot"]',
-                'button[type="submit"][data-id]'
+                'button[type="submit"][data-id]',
+                'button'  # Fallback: any button
             ]
 
             bid_button = None
@@ -163,15 +164,30 @@ class AuctionMonitor:
 
             for selector in bid_button_selectors:
                 try:
-                    print(f"Trying bid button selector: {selector}")
+                    print(f"🔍 Trying bid button selector: {selector}")
                     candidate_button = self.auction_frame.locator(selector).first
-                    if await candidate_button.is_visible(timeout=2000):
-                        bid_button = candidate_button
-                        found_selector = selector
-                        print(f"✅ BID BUTTON FOUND with selector: {selector}")
-                        break
+
+                    # Check if element exists first
+                    count = await candidate_button.count()
+                    print(f"   📊 Elements found with selector: {count}")
+
+                    if count > 0:
+                        # Check visibility
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        print(f"   👁️ Element visibility: {is_visible}")
+
+                        if is_visible:
+                            bid_button = candidate_button
+                            found_selector = selector
+                            print(f"✅ BID BUTTON FOUND with selector: {selector}")
+                            break
+                        else:
+                            print(f"   ⚠️ Element exists but not visible")
+                    else:
+                        print(f"   ❌ No elements found with selector")
+
                 except Exception as e:
-                    print(f"Selector {selector} failed: {e}")
+                    print(f"   💥 Selector {selector} failed: {e}")
                     continue
 
             if not bid_button:
