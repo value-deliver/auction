@@ -115,6 +115,7 @@ class AuctionMonitor:
                 try:
                     await bid_button.evaluate("""
                         (element) => {
+                            const originalText = element.textContent || element.innerText || 'Bid';
                             element.style.backgroundColor = '#ff6b6b';
                             element.style.border = '3px solid #ff0000';
                             element.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.5)';
@@ -127,7 +128,7 @@ class AuctionMonitor:
                                 element.style.border = '';
                                 element.style.boxShadow = '';
                                 element.style.transform = '';
-                                element.textContent = element.textContent.replace('BUTTON FOUND!', 'Bid');
+                                element.textContent = originalText;
                             }, 3000);
                         }
                     """)
