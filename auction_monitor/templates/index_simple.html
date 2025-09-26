@@ -569,30 +569,50 @@
         }
 
         async function placeBid(bidAmount) {
-            console.log('Sending bid request for amount:', bidAmount);
+            console.log('🚀 STARTING BID PLACEMENT PROCESS');
+            console.log('📊 Bid amount:', bidAmount);
+            console.log('🌐 API endpoint: /api/bid');
+            console.log('📡 HTTP method: POST');
+
             try {
+                console.log('📨 Preparing fetch request...');
+                const requestBody = JSON.stringify({ bid_amount: bidAmount });
+                console.log('📦 Request body:', requestBody);
+
                 const response = await fetch('/api/bid', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ bid_amount: bidAmount })
+                    body: requestBody
                 });
 
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+                console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+
                 const result = await response.json();
-                console.log('Bid response received:', result);
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
 
                 if (result.success) {
                     addMessage(`Bid placed: $${bidAmount}`, 'status');
-                    console.log('Bid placed successfully');
+                    console.log('🎉 BID PLACEMENT SUCCESSFUL');
                 } else {
                     addMessage(`Bid failed: ${result.message}`, 'error');
-                    console.log('Bid failed:', result.message);
+                    console.log('❌ BID PLACEMENT FAILED:', result.message);
                 }
             } catch (error) {
+                console.log('💥 BID REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
                 addMessage(`Bid error: ${error.message}`, 'error');
-                console.error('Bid request error:', error);
             }
+
+            console.log('🏁 BID PLACEMENT PROCESS COMPLETE');
         }
 
         function updateBidButtonState() {
@@ -615,13 +635,23 @@
         });
 
         document.getElementById('place-bid-btn').addEventListener('click', function() {
+            console.log('=== BID BUTTON CLICK DETECTED ===');
             const bidAmount = document.getElementById('bid-amount').value;
-            console.log('Bid button clicked with amount:', bidAmount);
+            console.log('Bid amount input value:', bidAmount);
+            console.log('Bid amount parsed:', parseFloat(bidAmount));
+            console.log('Is monitoring active:', isMonitoring);
+            console.log('Bid button disabled state:', this.disabled);
+
             if (bidAmount && parseFloat(bidAmount) > 0) {
+                console.log('✅ Valid bid amount, proceeding to place bid');
                 placeBid(parseFloat(bidAmount));
             } else {
-                console.log('Invalid bid amount:', bidAmount);
+                console.log('❌ Invalid bid amount, bid not placed');
+                console.log('Bid amount truthy check:', !!bidAmount);
+                console.log('Bid amount numeric check:', !isNaN(parseFloat(bidAmount)));
+                console.log('Bid amount positive check:', parseFloat(bidAmount) > 0);
             }
+            console.log('=== BID BUTTON CLICK HANDLER COMPLETE ===');
         });
 
         document.getElementById('bid-amount').addEventListener('input', function() {

@@ -137,28 +137,52 @@ def stop_monitoring():
 @app.route('/api/bid', methods=['POST'])
 def place_bid():
     """Place a bid on the current auction"""
+    print("🔥 API /api/bid endpoint called")
     global monitor
 
-    if not monitor or not monitor.is_monitoring:
+    if not monitor:
+        print("❌ No monitor instance available")
+        return jsonify({'success': False, 'message': 'No monitor instance available'})
+
+    if not monitor.is_monitoring:
+        print("❌ Monitor is not currently monitoring")
         return jsonify({'success': False, 'message': 'No active auction monitoring'})
 
-    try:
-        data = request.get_json()
-        bid_amount = data.get('bid_amount')
+    print("✅ Monitor is active and monitoring")
 
-        if not bid_amount or bid_amount <= 0:
-            return jsonify({'success': False, 'message': 'Valid bid amount is required'})
+    try:
+        print("📨 Parsing request JSON...")
+        data = request.get_json()
+        print(f"📋 Request data: {data}")
+
+        bid_amount = data.get('bid_amount')
+        print(f"💰 Bid amount: {bid_amount}")
+
+        if not bid_amount:
+            print("❌ No bid amount provided")
+            return jsonify({'success': False, 'message': 'Bid amount is required'})
+
+        if bid_amount <= 0:
+            print(f"❌ Invalid bid amount: {bid_amount}")
+            return jsonify({'success': False, 'message': 'Bid amount must be greater than 0'})
+
+        print(f"🚀 Placing bid for amount: ${bid_amount}")
 
         # Place bid asynchronously
         success = asyncio.run(monitor.place_bid(bid_amount))
+        print(f"📊 Bid placement result: {success}")
 
         if success:
+            print("✅ Bid placed successfully")
             return jsonify({'success': True, 'message': f'Bid placed: ${bid_amount}'})
         else:
+            print("❌ Bid placement failed")
             return jsonify({'success': False, 'message': 'Failed to place bid'})
 
     except Exception as e:
-        print(f"Bid error: {str(e)}")
+        print(f"💥 Bid endpoint error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'message': f'Bid failed: {str(e)}'})
 
 def start_monitoring_thread(auction_url):
