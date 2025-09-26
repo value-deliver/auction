@@ -156,39 +156,51 @@ class AuctionMonitor:
                 await bid_button.wait_for(timeout=5000)
                 print(f"✅ BID BUTTON FOUND with selector: {bid_button_selector}")
 
-                # Highlight the button by changing its style
+                # Highlight the Copart bid button by changing its style
                 try:
                     original_text = await bid_button.text_content()
-                    print(f"Original button text: '{original_text}'")
+                    print(f"Original Copart button text: '{original_text}'")
 
                     await bid_button.evaluate("""
                         (element) => {
                             const originalText = element.textContent || element.innerText || 'Bid';
-                            console.log('Highlighting button, original text:', originalText);
+                            console.log('Highlighting Copart bid button, original text:', originalText);
 
-                            element.style.backgroundColor = '#ff6b6b';
-                            element.style.border = '3px solid #ff0000';
-                            element.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.5)';
-                            element.style.transform = 'scale(1.1)';
-                            element.textContent = 'BUTTON FOUND!';
+                            // Store original styles
+                            const originalStyles = {
+                                backgroundColor: element.style.backgroundColor,
+                                border: element.style.border,
+                                boxShadow: element.style.boxShadow,
+                                transform: element.style.transform,
+                                color: element.style.color
+                            };
 
-                            console.log('Button highlighted successfully');
+                            // Apply bright highlighting
+                            element.style.backgroundColor = '#00ff00';  // Bright green
+                            element.style.border = '4px solid #ff0000';  // Red border
+                            element.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';  // Red glow
+                            element.style.transform = 'scale(1.2)';  // Larger scale
+                            element.style.color = '#000000';  // Black text for contrast
+                            element.textContent = 'TEST BID SUCCESS!';
 
-                            // Reset after 3 seconds
+                            console.log('Copart bid button highlighted successfully');
+
+                            // Reset after 5 seconds
                             setTimeout(() => {
-                                console.log('Resetting button to original state');
-                                element.style.backgroundColor = '';
-                                element.style.border = '';
-                                element.style.boxShadow = '';
-                                element.style.transform = '';
+                                console.log('Resetting Copart bid button to original state');
+                                element.style.backgroundColor = originalStyles.backgroundColor;
+                                element.style.border = originalStyles.border;
+                                element.style.boxShadow = originalStyles.boxShadow;
+                                element.style.transform = originalStyles.transform;
+                                element.style.color = originalStyles.color;
                                 element.textContent = originalText;
-                                console.log('Button reset complete');
-                            }, 3000);
+                                console.log('Copart bid button reset complete');
+                            }, 5000);
                         }
                     """)
-                    print("🎨 Bid button highlighted for 3 seconds")
+                    print("🎨 Copart bid button highlighted in bright green for 5 seconds")
                 except Exception as highlight_error:
-                    print(f"Could not highlight button: {highlight_error}")
+                    print(f"Could not highlight Copart bid button: {highlight_error}")
                     import traceback
                     traceback.print_exc()
 
