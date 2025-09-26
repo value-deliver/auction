@@ -149,69 +149,101 @@ class AuctionMonitor:
                 print(f"Failed to set bid amount: {e}")
                 return False
 
-            # Find the bid button (but don't click it)
-            bid_button_selector = 'button[data-uname="bidCurrentLot"], button[data-id]'
-            try:
-                bid_button = self.auction_frame.locator(bid_button_selector).first
-                await bid_button.wait_for(timeout=5000)
-                print(f"✅ BID BUTTON FOUND with selector: {bid_button_selector}")
+            # Find the bid button (but don't click it) - try multiple selectors
+            bid_button_selectors = [
+                'button[data-uname="bidCurrentLot"]',
+                'button[data-id="345"]',
+                'button.themed.btn.btn-primary.btn-sm.btn-auctions.disableEnter',
+                'button[type="submit"][data-uname="bidCurrentLot"]',
+                'button[type="submit"][data-id]'
+            ]
 
-                # Highlight the Copart bid button by changing its style
+            bid_button = None
+            found_selector = None
+
+            for selector in bid_button_selectors:
                 try:
-                    original_text = await bid_button.text_content()
-                    print(f"Original Copart button text: '{original_text}'")
+                    print(f"Trying bid button selector: {selector}")
+                    candidate_button = self.auction_frame.locator(selector).first
+                    if await candidate_button.is_visible(timeout=2000):
+                        bid_button = candidate_button
+                        found_selector = selector
+                        print(f"✅ BID BUTTON FOUND with selector: {selector}")
+                        break
+                except Exception as e:
+                    print(f"Selector {selector} failed: {e}")
+                    continue
 
-                    await bid_button.evaluate("""
-                        (element) => {
-                            const originalText = element.textContent || element.innerText || 'Bid';
-                            console.log('Highlighting Copart bid button, original text:', originalText);
-
-                            // Store original styles
-                            const originalStyles = {
-                                backgroundColor: element.style.backgroundColor,
-                                border: element.style.border,
-                                boxShadow: element.style.boxShadow,
-                                transform: element.style.transform,
-                                color: element.style.color
-                            };
-
-                            // Apply bright highlighting
-                            element.style.backgroundColor = '#00ff00';  // Bright green
-                            element.style.border = '4px solid #ff0000';  // Red border
-                            element.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';  // Red glow
-                            element.style.transform = 'scale(1.2)';  // Larger scale
-                            element.style.color = '#000000';  // Black text for contrast
-                            element.textContent = 'TEST BID SUCCESS!';
-
-                            console.log('Copart bid button highlighted successfully');
-
-                            // Reset after 5 seconds
-                            setTimeout(() => {
-                                console.log('Resetting Copart bid button to original state');
-                                element.style.backgroundColor = originalStyles.backgroundColor;
-                                element.style.border = originalStyles.border;
-                                element.style.boxShadow = originalStyles.boxShadow;
-                                element.style.transform = originalStyles.transform;
-                                element.style.color = originalStyles.color;
-                                element.textContent = originalText;
-                                console.log('Copart bid button reset complete');
-                            }, 5000);
-                        }
-                    """)
-                    print("🎨 Copart bid button highlighted in bright green for 5 seconds")
-                except Exception as highlight_error:
-                    print(f"Could not highlight Copart bid button: {highlight_error}")
-                    import traceback
-                    traceback.print_exc()
-
-                await asyncio.sleep(1)  # Brief pause to show the highlight
-                print("🎯 Bid button detection test completed successfully")
-                return True
-
-            except Exception as e:
-                print(f"❌ BID BUTTON NOT FOUND with selector: {bid_button_selector}")
-                print(f"Error: {e}")
+            if not bid_button:
+                print("❌ BID BUTTON NOT FOUND with any selector")
+                # Debug: list all buttons in the iframe
+                try:
+                    all_buttons = self.auction_frame.locator('button')
+                    button_count = await all_buttons.count()
+                    print(f"Found {button_count} buttons in iframe:")
+                    for i in range(min(button_count, 10)):  # Check first 10 buttons
+                        try:
+                            btn = all_buttons.nth(i)
+                            btn_text = await btn.text_content()
+                            btn_attrs = await btn.get_attribute('data-uname') or await btn.get_attribute('data-id') or await btn.get_attribute('type') or ''
+                            print(f"  Button {i}: text='{btn_text}', attrs='{btn_attrs}'")
+                        except Exception as e:
+                            print(f"  Button {i}: error getting info - {e}")
+                except Exception as e:
+                    print(f"Could not list buttons: {e}")
                 return False
+
+            # Highlight the Copart bid button by changing its style
+            try:
+                original_text = await bid_button.text_content()
+                print(f"Original Copart button text: '{original_text}'")
+
+                await bid_button.evaluate("""
+                    (element) => {
+                        const originalText = element.textContent || element.innerText || 'Bid';
+                        console.log('Highlighting Copart bid button, original text:', originalText);
+
+                        // Store original styles
+                        const originalStyles = {
+                            backgroundColor: element.style.backgroundColor,
+                            border: element.style.border,
+                            boxShadow: element.style.boxShadow,
+                            transform: element.style.transform,
+                            color: element.style.color
+                        };
+
+                        // Apply bright highlighting
+                        element.style.backgroundColor = '#00ff00';  // Bright green
+                        element.style.border = '4px solid #ff0000';  // Red border
+                        element.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';  // Red glow
+                        element.style.transform = 'scale(1.2)';  // Larger scale
+                        element.style.color = '#000000';  // Black text for contrast
+                        element.textContent = 'TEST BID SUCCESS!';
+
+                        console.log('Copart bid button highlighted successfully');
+
+                        // Reset after 5 seconds
+                        setTimeout(() => {
+                            console.log('Resetting Copart bid button to original state');
+                            element.style.backgroundColor = originalStyles.backgroundColor;
+                            element.style.border = originalStyles.border;
+                            element.style.boxShadow = originalStyles.boxShadow;
+                            element.style.transform = originalStyles.transform;
+                            element.style.color = originalStyles.color;
+                            element.textContent = originalText;
+                            console.log('Copart bid button reset complete');
+                        }, 5000);
+                    }
+                """)
+                print("🎨 Copart bid button highlighted in bright green for 5 seconds")
+            except Exception as highlight_error:
+                print(f"Could not highlight Copart bid button: {highlight_error}")
+                import traceback
+                traceback.print_exc()
+
+            await asyncio.sleep(1)  # Brief pause to show the highlight
+            print("🎯 Bid button detection test completed successfully")
+            return True
 
         except Exception as e:
             print(f"Bid button detection test failed: {e}")
