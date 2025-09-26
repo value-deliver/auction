@@ -131,11 +131,22 @@ class AuctionMonitor:
     async def place_bid(self, bid_amount):
         """Test bid button detection without actually placing a bid"""
         try:
+            print(f"🔍 Checking auction frame availability...")
+            print(f"📊 self.auction_frame exists: {self.auction_frame is not None}")
+
             if not self.auction_frame:
-                print("No auction frame available for bidding")
+                print("❌ No auction frame available for bidding")
+                print("🔍 Debugging iframe setup...")
+                print(f"   Browser exists: {self.browser is not None}")
+                print(f"   Page exists: {self.page is not None}")
+                if self.page:
+                    frames = self.page.frames
+                    print(f"   Total frames on page: {len(frames)}")
+                    for i, frame in enumerate(frames[1:], 1):  # skip main frame
+                        print(f"   Frame {i}: {frame.url}")
                 return False
 
-            print(f"Testing bid button detection for amount: ${bid_amount}")
+            print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
             # First, set the bid amount in the input field
             bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
