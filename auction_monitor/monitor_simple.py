@@ -149,15 +149,22 @@ class AuctionMonitor:
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
             # First, set the bid amount in the input field
+            print(f"🔢 Attempting to set bid amount to: ${bid_amount}")
             bid_input_selector = 'input[name="bidAmount"], input[data-uname="bidAmount"]'
             try:
+                print(f"🔍 Looking for bid input with selector: {bid_input_selector}")
                 bid_input = self.auction_frame.locator(bid_input_selector).first
+                print(f"📍 Found bid input element: {bid_input}")
                 await bid_input.wait_for(timeout=5000)
+                print(f"✅ Bid input is visible and ready")
                 await bid_input.fill(str(bid_amount))
-                print(f"Set bid amount to: ${bid_amount}")
+                print(f"💰 Successfully set bid amount to: ${bid_amount}")
                 await asyncio.sleep(0.5)  # Brief pause
+                print(f"⏳ Brief pause after setting bid amount")
             except Exception as e:
-                print(f"Failed to set bid amount: {e}")
+                print(f"❌ Failed to set bid amount: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
 
             # Find the bid button (but don't click it) - try multiple selectors
