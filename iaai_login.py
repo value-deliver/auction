@@ -826,6 +826,8 @@ async def main():
                 session_loaded = True
         except Exception as e:
             print(f'Failed to load session cookies: {e}')
+    
+        already_logged_in = False
 
         try:
             # Navigate to IAAI dashboard first, which will redirect to login if not authenticated
@@ -892,6 +894,7 @@ async def main():
                         else:
                             print("No CAPTCHA iframes found on dashboard - login successful!")
 
+                        already_logged_in = True
                         break
                     else:
                         print(f"Unexpected URL after dashboard navigation: {current_url}")
@@ -1051,117 +1054,134 @@ async def main():
             except Exception as e:
                 print(f"Cookie consent handling error: {e}")
 
-            # Wait for the login form to load (dynamic elements)
-            await page.wait_for_selector('input[name="Input.Email"]', timeout=62000)
+            if not already_logged_in:
+                # Wait for the login form to load (dynamic elements)
+                await page.wait_for_selector('input[name="Input.Email"]', timeout=62000)
 
-            # Fill login form (simplified approach like monitor_simple.py)
-            print('Filling login form...')
-            await page.click('input[name="Input.Email"]')
-            await asyncio.sleep(random.uniform(0.5, 1.5))
-            await page.fill('input[name="Input.Email"]', USERNAME)
-            await asyncio.sleep(random.uniform(2, 5))
+                # Fill login form (simplified approach like monitor_simple.py)
+                print('Filling login form...')
+                await page.click('input[name="Input.Email"]')
+                await asyncio.sleep(random.uniform(0.5, 1.5))
+                await page.fill('input[name="Input.Email"]', USERNAME)
+                await asyncio.sleep(random.uniform(2, 5))
 
-            await page.click('input[name="Input.Password"]')
-            await asyncio.sleep(random.uniform(0.5, 1.5))
-            await page.fill('input[name="Input.Password"]', PASSWORD)
-            await asyncio.sleep(random.uniform(2, 5))
+                await page.click('input[name="Input.Password"]')
+                await asyncio.sleep(random.uniform(0.5, 1.5))
+                await page.fill('input[name="Input.Password"]', PASSWORD)
+                await asyncio.sleep(random.uniform(2, 5))
 
-            # Submit login (simplified approach like monitor_simple.py)
-            print('Submitting login...')
-            login_btn = page.locator('button[type="submit"]').first
-            await login_btn.hover()
-            await asyncio.sleep(random.uniform(3, 5))
-            await login_btn.click(timeout=random.randint(10000, 30000))
+                # Submit login (simplified approach like monitor_simple.py)
+                print('Submitting login...')
+                login_btn = page.locator('button[type="submit"]').first
+                await login_btn.hover()
+                await asyncio.sleep(random.uniform(3, 5))
+                await login_btn.click(timeout=random.randint(10000, 30000))
 
-            # Wait for form submission and check result
-            try:
-                # Wait a bit for any form processing
-                await asyncio.sleep(3)
+                # Wait for form submission and check result
+                try:
+                    # Wait a bit for any form processing
+                    await asyncio.sleep(3)
 
-                # Check current URL
-                current_url = page.url
-                print(f"Current URL after submit: {current_url}")
+                    # Check current URL
+                    current_url = page.url
+                    print(f"Current URL after submit: {current_url}")
 
-                # Check for error messages
-                error_selectors = [
-                    '#lblErrorMessage',
-                    '#lblEmailMessage',
-                    '#lblBuyerProfileCalims',
-                    '.alert-error',
-                    '.alert-danger'
-                ]
+                    # Check for error messages
+                    error_selectors = [
+                        '#lblErrorMessage',
+                        '#lblEmailMessage',
+                        '#lblBuyerProfileCalims',
+                        '.alert-error',
+                        '.alert-danger'
+                    ]
 
-                login_successful = True
-                for selector in error_selectors:
-                    try:
-                        error_element = page.locator(selector).first
-                        if await error_element.is_visible():
-                            error_text = await error_element.text_content()
-                            print(f"Login error found: {error_text}")
-                            login_successful = False
-                            break
-                    except:
-                        continue
+                    login_successful = True
+                    for selector in error_selectors:
+                        try:
+                            error_element = page.locator(selector).first
+                            if await error_element.is_visible():
+                                error_text = await error_element.text_content()
+                                print(f"Login error found: {error_text}")
+                                login_successful = False
+                                break
+                        except:
+                            continue
 
-                if "login.iaai.com" not in current_url and login_successful:
+                    if "login.iaai.com" not in current_url and login_successful:
+                        print("Login successful!")
+                        print(f'Current URL: {current_url}')
+
+                        # Check if we're on dashboard and look for CAPTCHA iframes
+                        if "dashboard" in current_url.lower() or "iaai.com" in current_url:
+                            print("On dashboard page, checking for CAPTCHA iframes...")
+
+                            # Look for CAPTCHA iframes that might appear after login
+                            captcha_iframes = page.locator('iframe')
+                            iframe_count = await captcha_iframes.count()
+                            print(f"Found {iframe_count} iframes on dashboard")
+
+                            captcha_found = False
+                            for i in range(iframe_count):
+                                try:
+                                    iframe = captcha_iframes.nth(i)
+                                    src = await iframe.get_attribute('src')
+                                    if src and ('captcha' in src.lower() or 'challenge' in src.lower()):
+                                        print(f"CAPTCHA iframe found: {src}")
+                                        captcha_found = True
+                                        break
+                                except:
+                                    continue
+
+                            if captcha_found:
+                                print("CAPTCHA iframe detected on dashboard - manual intervention required")
+                                print("Please solve the CAPTCHA in the browser window")
+                                # Keep browser open for manual CAPTCHA solving
+                                await asyncio.sleep(120)  # 2 minutes for manual solving
+                            else:
+                                print("No CAPTCHA iframes found on dashboard")
+
+                        # Add pause after login before navigating (like monitor_simple.py)
+                        print('Pausing after login to appear more human-like...')
+                        await asyncio.sleep(random.uniform(5, 10))
+
+                        # Save session cookies for future use (like monitor_simple.py)
+                        try:
+                            cookies = await context.cookies()
+                            with open('iaai_session.json', 'w') as f:
+                                json.dump(cookies, f, indent=2)
+                            print('Session cookies saved')
+                        except Exception as e:
+                            print(f'Failed to save session cookies: {e}')
+
+                    else:
+                        print("Login may have failed. Check for errors.")
+
+                except Exception as e:
+                    print(f"Error checking login result: {e}")
+                    print(f"Current URL: {page.url}")
+
+                # Check for login success
+                if "login.iaai.com" not in page.url:
                     print("Login successful!")
-                    print(f'Current URL: {current_url}')
-
-                    # Check if we're on dashboard and look for CAPTCHA iframes
-                    if "dashboard" in current_url.lower() or "iaai.com" in current_url:
-                        print("On dashboard page, checking for CAPTCHA iframes...")
-
-                        # Look for CAPTCHA iframes that might appear after login
-                        captcha_iframes = page.locator('iframe')
-                        iframe_count = await captcha_iframes.count()
-                        print(f"Found {iframe_count} iframes on dashboard")
-
-                        captcha_found = False
-                        for i in range(iframe_count):
-                            try:
-                                iframe = captcha_iframes.nth(i)
-                                src = await iframe.get_attribute('src')
-                                if src and ('captcha' in src.lower() or 'challenge' in src.lower()):
-                                    print(f"CAPTCHA iframe found: {src}")
-                                    captcha_found = True
-                                    break
-                            except:
-                                continue
-
-                        if captcha_found:
-                            print("CAPTCHA iframe detected on dashboard - manual intervention required")
-                            print("Please solve the CAPTCHA in the browser window")
-                            # Keep browser open for manual CAPTCHA solving
-                            await asyncio.sleep(120)  # 2 minutes for manual solving
-                        else:
-                            print("No CAPTCHA iframes found on dashboard")
-
-                    # Add pause after login before navigating (like monitor_simple.py)
-                    print('Pausing after login to appear more human-like...')
-                    await asyncio.sleep(random.uniform(5, 10))
-
-                    # Save session cookies for future use (like monitor_simple.py)
-                    try:
-                        cookies = await context.cookies()
-                        with open('iaai_session.json', 'w') as f:
-                            json.dump(cookies, f, indent=2)
-                        print('Session cookies saved')
-                    except Exception as e:
-                        print(f'Failed to save session cookies: {e}')
-
+                    print(f"Current page: {page.url}")
                 else:
                     print("Login may have failed. Check for errors.")
+            else:
+                # Already logged in, just pause and save cookies if needed
+                print('Already logged in, pausing to appear more human-like...')
+                await asyncio.sleep(random.uniform(5, 10))
 
-            except Exception as e:
-                print(f"Error checking login result: {e}")
-                print(f"Current URL: {page.url}")
+                # Save session cookies for future use (like monitor_simple.py)
+                try:
+                    cookies = await context.cookies()
+                    with open('iaai_session.json', 'w') as f:
+                        json.dump(cookies, f, indent=2)
+                    print('Session cookies saved')
+                except Exception as e:
+                    print(f'Failed to save session cookies: {e}')
 
-            # Check for login success
-            if "login.iaai.com" not in page.url:
                 print("Login successful!")
                 print(f"Current page: {page.url}")
-            else:
-                print("Login may have failed. Check for errors.")
 
 
         except PlaywrightTimeoutError as e:
