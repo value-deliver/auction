@@ -45,6 +45,7 @@ class AuctionMonitor:
         self.auction_frame = None
         self.throttler = RequestThrottler()
         self.socketio = socketio_instance
+        self._frame_navigation_handler = None  # Store navigation handler reference
         logging.basicConfig(filename='auction_monitor.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     async def start_monitoring(self, auction_url):
@@ -82,6 +83,15 @@ class AuctionMonitor:
     def stop_monitoring(self):
         """Stop monitoring and clean up listeners"""
         print("Stopping auction monitoring and cleaning up listeners...")
+
+        # Navigation handler is disabled for now
+        # if self.page and self._frame_navigation_handler:
+        #     try:
+        #         self.page.remove_listener('framenavigated', self._frame_navigation_handler)
+        #         self._frame_navigation_handler = None
+        #         print("✅ Navigation event handler removed")
+        #     except Exception as e:
+        #         print(f"⚠️ Could not remove navigation handler: {e}")
 
         # Clean up MutationObservers in the iframe
         if self.auction_frame and self.page:
@@ -128,6 +138,229 @@ class AuctionMonitor:
         self.is_monitoring = False
         print("Auction monitoring stopped")
 
+    async def find_bid_button(self, auction_url):
+        """Complete bid button finder functionality - replicates auction_bid_button_finder.py"""
+        try:
+            print(f"🔍 Starting bid button finder for auction: {auction_url}")
+
+            # Load environment variables
+            self._load_env()
+
+            # Initialize browser if not already done
+            if not self.browser:
+                await self._init_browser()
+
+            # Login to Copart if not already logged in
+            await self._login_to_copart()
+
+            # Navigate to auction
+            if not auction_url.startswith('http'):
+                auction_url = f"https://www.copart.com{auction_url}"
+
+            print('Going to auction URL...')
+            await self.page.goto(auction_url, timeout=60000)
+            print('Waiting for page load...')
+            await self.page.wait_for_load_state('load', timeout=30000)
+
+            print(f'Page title after navigation: {await self.page.title()}')
+            print(f'Current URL: {self.page.url}')
+
+            # Wait for iframe to be present in DOM
+            print('Waiting for auction iframe to load...')
+            await self.page.wait_for_selector('iframe[src*="g2auction.copart.com"]', timeout=30000)
+            print('Iframe element found in DOM')
+
+            # Find iframe
+            target_frame = None
+            frames = self.page.frames
+            for frame in frames:
+                if 'g2auction.copart.com' in frame.url:
+                    target_frame = frame
+                    break
+
+            if not target_frame:
+                print("❌ Auction iframe not found by URL")
+                # Try to find any iframe and wait for it to load
+                try:
+                    all_iframes = self.page.locator('iframe')
+                    iframe_count = await all_iframes.count()
+                    print(f"Found {iframe_count} iframes on page")
+                    if iframe_count > 0:
+                        # Wait for first iframe to load
+                        first_iframe = all_iframes.first
+                        await self.page.wait_for_timeout(5000)  # Wait 5 seconds
+                        frames = self.page.frames
+                        for frame in frames:
+                            if frame != self.page.main_frame and frame.url:
+                                print(f"Frame URL: {frame.url}")
+                                if 'g2auction' in frame.url:
+                                    target_frame = frame
+                                    break
+                except Exception as e:
+                    print(f"Error checking iframes: {e}")
+                if not target_frame:
+                    return False
+
+            print(f"✅ Found auction iframe: {target_frame.url}")
+            # Wait for frame content to load
+            await target_frame.wait_for_load_state('domcontentloaded', timeout=60000)
+            print("Frame content loaded")
+
+            # Debug: Check iframes
+            iframe_count = await self.page.locator('iframe[src*="g2auction.copart.com"]').count()
+            print(f"📊 Iframes with g2auction src found: {iframe_count}")
+
+            # Debug: Print iframe HTML snippet to check for nested iframes
+            iframe_html = await target_frame.content()
+            print(f"Target frame HTML snippet: {iframe_html[:2000]}")
+
+            # Check for sub-iframes in the target_frame
+            sub_iframes = await target_frame.locator('iframe').all()
+            print(f"📊 Sub-iframes in auction iframe: {len(sub_iframes)}")
+
+            button_frame = target_frame  # Default to target_frame
+            bid_button_found = False
+
+            for i, sub_iframe_locator in enumerate(sub_iframes):
+                try:
+                    sub_frame = await sub_iframe_locator.content_frame()
+                    if sub_frame:
+                        print(f"  Sub-iframe {i}: {sub_frame.url}")
+                        # Try to find button in sub_frame
+                        bid_button = sub_frame.locator('button[data-uname="bidCurrentLot"]')
+                        try:
+                            await bid_button.wait_for(timeout=5000)
+                            print("✅ Found bid button in sub-iframe")
+                            button_frame = sub_frame
+                            bid_button_found = True
+                            break
+                        except PlaywrightTimeoutError:
+                            print("❌ Bid button not in sub-iframe")
+                except Exception as e:
+                    print(f"Error accessing sub-iframe {i}: {e}")
+
+            if not bid_button_found:
+                print("Checking for bid button in main auction iframe...")
+                bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]')
+                try:
+                    await bid_button.wait_for(timeout=30000)
+                    print("✅ Bid button found in main auction iframe")
+                except PlaywrightTimeoutError:
+                    print("❌ Bid button not found in main auction iframe either")
+                    return False
+
+            # Check count
+            count = await bid_button.count()
+            print(f"📊 Bid button elements found: {count}")
+
+            if count > 0:
+                bid_button = bid_button.first
+                is_visible = await bid_button.is_visible(timeout=2000)
+                print(f"👁️ Button visibility: {is_visible}")
+
+                button_text = await bid_button.text_content()
+                print(f"📋 Button text: '{button_text}'")
+
+                button_outer_html = await bid_button.evaluate('element => element.outerHTML')
+                print(f"📋 Button outer HTML: '{button_outer_html}'")
+
+                # Highlight the bid button by changing its color
+                try:
+                    print("🎨 Highlighting bid button...")
+                    await bid_button.evaluate("""
+                        (element) => {
+                            console.log('🎨 Starting bid button highlighting...');
+                            const originalStyles = {
+                                backgroundColor: element.style.backgroundColor,
+                                border: element.style.border,
+                                color: element.style.color,
+                                background: element.style.background
+                            };
+                            console.log('Original styles stored:', originalStyles);
+
+                            // Apply bright highlighting
+                            element.style.setProperty('background-color', '#00ff00', 'important');
+                            element.style.setProperty('border', '3px solid #ff0000', 'important');
+                            element.style.setProperty('color', '#000000', 'important');
+                            element.style.setProperty('font-weight', 'bold', 'important');
+
+                            console.log('✅ Bid button highlighting applied');
+
+                            // Reset after 3 seconds
+                            setTimeout(() => {
+                                console.log('🔄 Resetting bid button to original state...');
+                                element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                                element.style.setProperty('border', originalStyles.border, 'important');
+                                element.style.setProperty('color', originalStyles.color, 'important');
+                                element.style.setProperty('font-weight', '', 'important');
+                                console.log('✅ Bid button reset complete');
+                            }, 3000);
+                        }
+                    """)
+                    print("🎨 Bid button highlighting script executed successfully")
+                except Exception as e:
+                    print(f"❌ Could not highlight bid button: {e}")
+
+                # Keep browser open to see the color change
+                print("🔍 Browser will remain open for 10 seconds to view the color change...")
+                await asyncio.sleep(10)
+                print("🔍 Browser kept open for viewing")
+
+            return True
+
+        except Exception as e:
+            print(f"Bid button finder failed: {e}")
+            return False
+
+    async def _highlight_bid_button_periodic(self):
+        """Periodically highlight the bid button during monitoring to show system is active"""
+        try:
+            if not self.auction_frame:
+                return
+
+            # Find the bid button in the current auction frame
+            bid_button = self.auction_frame.locator('button[data-uname="bidCurrentLot"]').first
+
+            # Check if button exists and is visible
+            count = await bid_button.count()
+            if count == 0:
+                return
+
+            is_visible = await bid_button.is_visible(timeout=1000)
+            if not is_visible:
+                return
+
+            # Highlight the button briefly
+            await bid_button.evaluate("""
+                (element) => {
+                    const originalStyles = {
+                        backgroundColor: element.style.backgroundColor,
+                        border: element.style.border,
+                        color: element.style.color,
+                        background: element.style.background
+                    };
+
+                    // Apply brief highlighting
+                    element.style.setProperty('background-color', '#00ff00', 'important');
+                    element.style.setProperty('border', '2px solid #ff0000', 'important');
+                    element.style.setProperty('color', '#000000', 'important');
+
+                    // Reset after 2 seconds
+                    setTimeout(() => {
+                        element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                        element.style.setProperty('border', originalStyles.border, 'important');
+                        element.style.setProperty('color', originalStyles.color, 'important');
+                    }, 2000);
+                }
+            """)
+
+            print("🔄 Periodic bid button highlight applied")
+
+        except Exception as e:
+            # Don't log errors for periodic highlighting to avoid spam
+            pass
+
+
     async def place_bid(self, bid_amount):
         """Test bid button detection without actually placing a bid"""
         try:
@@ -148,7 +381,7 @@ class AuctionMonitor:
 
             print(f"✅ Auction frame available, proceeding with bid button detection for amount: ${bid_amount}")
 
-            print(f"🎯 Skipping bid input setting, going straight to button detection...")
+            print(f"🎯 Finding bid button...")
             # Get the actual frame object
             print(f"🔍 Getting iframe frame object...")
             target_frame = None
@@ -163,15 +396,80 @@ class AuctionMonitor:
                 print(f"❌ Could not find g2auction.copart.com frame")
                 return False
 
+            # Wait for frame content to load
+            print(f"⏳ Waiting for frame content to load...")
+            await target_frame.wait_for_load_state('domcontentloaded', timeout=10000)
+            print(f"✅ Frame content loaded")
+
             # Try the most direct approach - just find the bid button
             print(f"🎯 Looking for bid button with selector: button[data-uname='bidCurrentLot']")
             try:
-                bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]').first
-                print(f"📍 Created button locator")
+                print("Entered try block for bid button detection")
 
-                # First check if element exists
+                # Debug: Print iframe HTML snippet to check for nested iframes
+                try:
+                    iframe_html = await asyncio.wait_for(target_frame.content(), timeout=5.0)
+                    print(f"Target frame HTML snippet: {iframe_html[:2000]}")
+                except asyncio.TimeoutError:
+                    print("Timeout getting iframe HTML")
+                except Exception as e:
+                    print(f"Failed to get iframe HTML: {e}")
+
+                # Check for sub-frames in the target_frame
+                try:
+                    sub_frames = target_frame.child_frames
+                    print(f"📊 Sub-frames in auction iframe: {len(sub_frames)}")
+                    for i, sub_frame in enumerate(sub_frames):
+                        print(f"  Sub-frame {i}: {sub_frame.url}")
+                except Exception as e:
+                    print(f"Failed to check sub-frames: {e}")
+                    sub_frames = []
+
+                button_frame = target_frame  # Default to target_frame
+                bid_button_found = False
+
+                for i, sub_frame in enumerate(sub_frames):
+                    try:
+                        # Try to find button in sub_frame
+                        bid_button = sub_frame.locator('button[data-uname="bidCurrentLot"]')
+                        try:
+                            await bid_button.wait_for(timeout=5000)
+                            print("✅ Found bid button in sub-frame")
+                            button_frame = sub_frame
+                            bid_button_found = True
+                            break
+                        except PlaywrightTimeoutError:
+                            print("❌ Bid button not in sub-frame")
+                    except Exception as e:
+                        print(f"Error accessing sub-frame {i}: {e}")
+
+                if not bid_button_found:
+                    print("Checking for bid button in main auction iframe...")
+                    bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]')
+                    try:
+                        await bid_button.wait_for(timeout=30000)
+                        print("✅ Bid button found in main auction iframe")
+                    except PlaywrightTimeoutError:
+                        print("❌ Bid button not found in main auction iframe either")
+                        return False
+
+                # Check count
                 count = await bid_button.count()
-                print(f"📊 Button elements found: {count}")
+                print(f"📊 Bid button elements found: {count}")
+
+                # Debug: list all buttons in the frame
+                all_buttons = target_frame.locator('button')
+                total_buttons = await all_buttons.count()
+                print(f"📊 Total buttons in frame: {total_buttons}")
+                for i in range(min(total_buttons, 5)):  # Check first 5 buttons
+                    try:
+                        btn = all_buttons.nth(i)
+                        btn_text = await btn.text_content()
+                        btn_uname = await btn.get_attribute('data-uname')
+                        btn_type = await btn.get_attribute('type')
+                        print(f"  Button {i}: text='{btn_text}', data-uname='{btn_uname}', type='{btn_type}'")
+                    except Exception as e:
+                        print(f"  Button {i}: error getting info - {e}")
 
                 if count == 0:
                     print(f"❌ No bid button elements found with selector")
@@ -184,6 +482,23 @@ class AuctionMonitor:
 
                 if is_visible:
                     print(f"✅ BID BUTTON FOUND and visible!")
+                    # Print element details
+                    button_text = await bid_button.text_content()
+                    button_attrs = await bid_button.get_attribute('data-uname')
+                    print(f"📋 Element found by [data-uname='bidCurrentLot'] - text: '{button_text}', data-uname: '{button_attrs}'")
+
+                    # Print button outer HTML
+                    try:
+                        button_outer_html = await bid_button.evaluate('element => element.outerHTML')
+                        print(f"📋 Button outer HTML: '{button_outer_html}'")
+                    except Exception as e:
+                        print(f"Failed to get button outer HTML: {e}")
+
+                    # Button found successfully - print content and return
+                    print(f"✅ BID BUTTON FOUND - content printed above")
+                    await asyncio.sleep(1)
+                    return True
+
                 else:
                     print(f"⚠️ Bid button exists but not visible (auction may not be live)")
                     return False
@@ -212,95 +527,6 @@ class AuctionMonitor:
                 except Exception as e:
                     print(f"Could not list buttons: {e}")
                 return False
-
-            # Highlight the Copart bid button by changing its style
-            try:
-                print("🎨 Attempting to highlight bid button...")
-                original_text = await bid_button.text_content()
-                print(f"✅ Got button text: '{original_text}'")
-
-                # Get button attributes for debugging
-                data_uname = await bid_button.get_attribute('data-uname')
-                data_id = await bid_button.get_attribute('data-id')
-                button_class = await bid_button.get_attribute('class')
-                button_type = await bid_button.get_attribute('type')
-                print(f"🎯 Button attributes - data-uname: '{data_uname}', data-id: '{data_id}', class: '{button_class}', type: '{button_type}'")
-
-                # Check if button is visible
-                is_visible = await bid_button.is_visible()
-                print(f"👁️ Button visibility: {is_visible}")
-
-                await bid_button.evaluate("""
-                    (element) => {
-                        console.log('🎨 Starting Copart bid button highlighting...');
-                        console.log('Element found:', element);
-                        console.log('Element tagName:', element.tagName);
-                        console.log('Element className:', element.className);
-                        console.log('Element textContent:', element.textContent);
-
-                        const originalText = element.textContent || element.innerText || 'Bid';
-                        console.log('Storing original text:', originalText);
-
-                        // Store original styles
-                        const originalStyles = {
-                            backgroundColor: element.style.backgroundColor,
-                            border: element.style.border,
-                            boxShadow: element.style.boxShadow,
-                            transform: element.style.transform,
-                            color: element.style.color,
-                            background: element.style.background,
-                            borderRadius: element.style.borderRadius
-                        };
-                        console.log('Original styles stored:', originalStyles);
-
-                        // Apply bright highlighting with !important to override any CSS
-                        element.style.setProperty('background-color', '#00ff00', 'important');
-                        element.style.setProperty('border', '4px solid #ff0000', 'important');
-                        element.style.setProperty('box-shadow', '0 0 20px rgba(255, 0, 0, 0.8)', 'important');
-                        element.style.setProperty('transform', 'scale(1.2)', 'important');
-                        element.style.setProperty('color', '#000000', 'important');
-                        element.style.setProperty('z-index', '9999', 'important');
-                        element.style.setProperty('position', 'relative', 'important');
-
-                        // Change text
-                        element.textContent = 'TEST BID SUCCESS!';
-                        console.log('✅ Copart bid button highlighting applied successfully');
-
-                        // Add a visual indicator that the script ran
-                        element.setAttribute('data-highlighted', 'true');
-
-                        // Reset after 5 seconds
-                        setTimeout(() => {
-                            console.log('🔄 Resetting Copart bid button to original state...');
-                            element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
-                            element.style.setProperty('border', originalStyles.border, 'important');
-                            element.style.setProperty('box-shadow', originalStyles.boxShadow, 'important');
-                            element.style.setProperty('transform', originalStyles.transform, 'important');
-                            element.style.setProperty('color', originalStyles.color, 'important');
-                            element.style.setProperty('z-index', '', 'important');
-                            element.style.setProperty('position', '', 'important');
-                            element.textContent = originalText;
-                            element.removeAttribute('data-highlighted');
-                            console.log('✅ Copart bid button reset complete');
-                        }, 5000);
-
-                        return 'highlighting_applied';
-                    }
-                """)
-                print("🎨 Copart bid button highlighting script executed successfully")
-
-                # Verify the highlighting was applied by checking the attribute
-                highlighted_attr = await bid_button.get_attribute('data-highlighted')
-                print(f"🎯 Highlighting verification - data-highlighted attribute: '{highlighted_attr}'")
-
-            except Exception as highlight_error:
-                print(f"❌ Could not highlight Copart bid button: {highlight_error}")
-                import traceback
-                traceback.print_exc()
-
-            await asyncio.sleep(1)  # Brief pause to show the highlight
-            print("🎯 Bid button detection test completed successfully")
-            return True
 
         except Exception as e:
             print(f"Bid button detection test failed: {e}")
@@ -700,93 +926,150 @@ class AuctionMonitor:
         print(f'Page title after navigation: {await self.page.title()}')
         print(f'Current URL: {self.page.url}')
 
-        # Debug: Check page content and iframes
-        content = await self.page.content()
-        print(f'Page content length: {len(content)}')
-        if 'iframe' in content.lower():
-            print('Page contains iframes')
-        else:
-            print('Page does NOT contain iframes')
+        # Temporarily disable navigation handler to avoid interference with monitoring
+        # self._frame_navigation_handler = self._handle_frame_navigation
+        # self.page.on('framenavigated', self._frame_navigation_handler)
 
-        # Check for iframes
-        frames = self.page.frames
-        print(f'Number of frames: {len(frames)}')
-        for i, frame in enumerate(frames[1:], 1):  # skip main frame
-            print(f'Frame {i}: {frame.url}')
+        await self._establish_iframe_connection()
 
-        # Try to find auction iframe with different selectors
-        iframe_selectors = [
-            'iframe[src*="g2auction.copart.com"]',
-            'iframe[src*="auction"]',
-            'iframe',
-        ]
-
-        self.auction_frame = None
-        for selector in iframe_selectors:
-            try:
-                print(f'Trying iframe selector: {selector}')
-                frame_locator = self.page.frame_locator(selector)
-                print(f'Created frame locator for: {selector}')
-                # Test if frame exists by trying to get an element
-                test_element = frame_locator.locator('body')
-                print(f'Waiting for iframe body element...')
-                await test_element.wait_for(timeout=5000)
-                self.auction_frame = frame_locator
-                print(f'Found auction iframe with selector: {selector}')
-                break
-            except Exception as e:
-                print(f'Frame selector {selector} failed: {e}')
-                continue
-
-        if self.auction_frame is None:
-            print('No auction iframe found, checking if auction is live...')
-            # Check if this is a live auction page
-            if 'auctionDetails=' in self.page.url:
-                print('On auction details page, but no iframe found')
-                # Maybe the auction interface loads differently
-                # Check for any auction-related content on main page
-                auction_content = await self.page.locator('text="auction"').count()
-                print(f'Found {auction_content} auction-related text elements')
-            else:
-                print('Not on auction page')
-
-            # Take screenshot for debugging
-            try:
-                await self.page.screenshot(path='debug_auction_page.png')
-                print('Screenshot saved as debug_auction_page.png')
-            except Exception as e:
-                print(f'Failed to take screenshot: {e}')
-
-            # Set up network monitoring for cross-origin iframe communication
-            await self._setup_network_monitoring()
-            return  # Exit early if no iframe found
-
-        # Check if element exists before waiting
-        element = self.auction_frame.locator('.auctionrunningdiv-MACRO')
-        count = await element.count()
-        logging.info(f'Element .auctionrunningdiv-MACRO count in frame before wait: {count}')
-
-        # Wait for auction content to load (but don't fail if not found)
-        print('Waiting for auction content to load...')
+    async def _establish_iframe_connection(self):
+        """Establish connection to the auction iframe"""
         try:
-            await self.auction_frame.locator('.auctionrunningdiv-MACRO').wait_for(timeout=10000)  # Reduced timeout
-            print('Auction content loaded - live auction detected!')
-            logging.info('Auction content loaded - MutationObserver can be set up')
+            # Check if browser/page is still available
+            if not self.browser or self.browser.is_connected() is False:
+                print('Browser is closed, cannot establish iframe connection')
+                return
+
+            if not self.page or self.page.is_closed():
+                print('Page is closed, cannot establish iframe connection')
+                return
+
+            # Debug: Check page content and iframes
+            content = await self.page.content()
+            print(f'Page content length: {len(content)}')
+            if 'iframe' in content.lower():
+                print('Page contains iframes')
+            else:
+                print('Page does NOT contain iframes')
         except Exception as e:
-            print(f'Auction content not loaded within 10 seconds: {e}')
-            print('Auction may not be live yet, proceeding with monitoring...')
-            logging.info(f'Auction content wait failed: {e}')
-            # Check element count
+            print(f'Failed to check page content: {e}')
+            return
+
+        try:
+            # Check for iframes
+            frames = self.page.frames
+            print(f'Number of frames: {len(frames)}')
+            for i, frame in enumerate(frames[1:], 1):  # skip main frame
+                print(f'Frame {i}: {frame.url}')
+
+            # Try to find auction iframe with different selectors
+            iframe_selectors = [
+                'iframe[src*="g2auction.copart.com"]',
+                'iframe[src*="auction"]',
+                'iframe',
+            ]
+
+            self.auction_frame = None
+            for selector in iframe_selectors:
+                try:
+                    print(f'Trying iframe selector: {selector}')
+                    frame_locator = self.page.frame_locator(selector)
+                    print(f'Created frame locator for: {selector}')
+                    # Test if frame exists by trying to get an element
+                    test_element = frame_locator.locator('body')
+                    print(f'Waiting for iframe body element...')
+                    await test_element.wait_for(timeout=5000)
+                    self.auction_frame = frame_locator
+                    print(f'Found auction iframe with selector: {selector}')
+                    break
+                except Exception as e:
+                    print(f'Frame selector {selector} failed: {e}')
+                    continue
+        except Exception as e:
+            print(f'Failed to check frames: {e}')
+            return
+
+        try:
+            if self.auction_frame is None:
+                print('No auction iframe found, checking if auction is live...')
+                # Check if this is a live auction page
+                if 'auctionDetails=' in self.page.url:
+                    print('On auction details page, but no iframe found')
+                    # Maybe the auction interface loads differently
+                    # Check for any auction-related content on main page
+                    auction_content = await self.page.locator('text="auction"').count()
+                    print(f'Found {auction_content} auction-related text elements')
+                else:
+                    print('Not on auction page')
+
+                # Take screenshot for debugging
+                try:
+                    await self.page.screenshot(path='debug_auction_page.png')
+                    print('Screenshot saved as debug_auction_page.png')
+                except Exception as e:
+                    print(f'Failed to take screenshot: {e}')
+
+                # Set up network monitoring for cross-origin iframe communication
+                await self._setup_network_monitoring()
+                return  # Exit early if no iframe found
+
+            # Check if element exists before waiting
             element = self.auction_frame.locator('.auctionrunningdiv-MACRO')
             count = await element.count()
-            logging.info(f'Element .auctionrunningdiv-MACRO count in frame: {count}')
-            if count == 0:
-                print('No auction elements found - auction is not live')
-            else:
-                print(f'Found {count} auction elements')
+            logging.info(f'Element .auctionrunningdiv-MACRO count in frame before wait: {count}')
 
-        # Set up network monitoring for auction data
-        await self._setup_network_monitoring()
+            # Wait for auction content to load (but don't fail if not found)
+            print('Waiting for auction content to load...')
+            try:
+                await self.auction_frame.locator('.auctionrunningdiv-MACRO').wait_for(timeout=10000)  # Reduced timeout
+                print('Auction content loaded - live auction detected!')
+                logging.info('Auction content loaded - MutationObserver can be set up')
+            except Exception as e:
+                print(f'Auction content not loaded within 10 seconds: {e}')
+                print('Auction may not be live yet, proceeding with monitoring...')
+                logging.info(f'Auction content wait failed: {e}')
+                # Check element count
+                element = self.auction_frame.locator('.auctionrunningdiv-MACRO')
+                count = await element.count()
+                logging.info(f'Element .auctionrunningdiv-MACRO count in frame: {count}')
+                if count == 0:
+                    print('No auction elements found - auction is not live')
+                else:
+                    print(f'Found {count} auction elements')
+
+            # Set up network monitoring for auction data
+            await self._setup_network_monitoring()
+        except Exception as e:
+            print(f'Failed to establish iframe connection: {e}')
+            return
+
+    async def _handle_frame_navigation(self, frame):
+        """Handle frame navigation events to re-establish iframe connections"""
+        try:
+            # Check if browser/page is still available
+            if not self.browser or self.browser.is_connected() is False:
+                print('Browser is closed, ignoring frame navigation')
+                return
+
+            if not self.page or self.page.is_closed():
+                print('Page is closed, ignoring frame navigation')
+                return
+
+            if not self.is_monitoring:
+                print('Monitoring stopped, ignoring frame navigation')
+                return
+
+            print(f'Frame navigation detected: {frame.url}')
+            if 'g2auction.copart.com' in frame.url:
+                print('Auction iframe navigated, re-establishing connection...')
+                # Re-establish iframe connection
+                await self._establish_iframe_connection()
+                # Re-setup mutation observer
+                await self._setup_mutation_observer()
+                print('Iframe connection re-established after navigation')
+        except Exception as e:
+            print(f'Error handling frame navigation: {e}')
+            # Don't re-raise the exception to prevent crashes
 
     async def _monitor_auction(self):
         """Main monitoring loop with MutationObserver and network monitoring for real-time updates"""
@@ -843,6 +1126,15 @@ class AuctionMonitor:
                                 await self._setup_mutation_observer()
                             except Exception as reinit_error:
                                 print(f"Failed to reinitialize iframe access: {reinit_error}")
+
+                # Periodic bid button highlighting - every 30 seconds (reduced frequency)
+                if not hasattr(self, '_last_button_highlight') or current_time - self._last_button_highlight > 30:
+                    self._last_button_highlight = current_time
+                    try:
+                        await self._highlight_bid_button_periodic()
+                    except Exception as highlight_error:
+                        # Don't print periodic highlight errors to avoid spam
+                        pass
 
             except Exception as e:
                 print(f'Monitoring error: {str(e)}')

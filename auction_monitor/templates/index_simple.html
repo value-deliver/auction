@@ -324,6 +324,13 @@
                     <button type="button" class="bid-button" id="place-bid-btn" disabled>Place Bid</button>
                 </div>
             </div>
+
+
+            <div class="control-group">
+                <label for="finder-auction-url">Bid Button Finder URL:</label>
+                <input type="text" id="finder-auction-url" placeholder="e.g., /auctionDashboard?auctionDetails=832-A" value="/auctionDashboard?auctionDetails=832-A">
+                <button type="button" class="btn btn-primary" id="find-bid-btn">Find Bid Button</button>
+            </div>
         </div>
 
         <div class="dashboard">
@@ -615,6 +622,53 @@
             console.log('🏁 BID PLACEMENT PROCESS COMPLETE');
         }
 
+        async function findBidButton(auctionUrl) {
+            console.log('🔍 STARTING BID BUTTON FINDER PROCESS');
+            console.log('🔗 Auction URL:', auctionUrl);
+            console.log('🌐 API endpoint: /api/find_bid_button');
+            console.log('📡 HTTP method: POST');
+
+            try {
+                console.log('📨 Preparing fetch request...');
+                const requestBody = JSON.stringify({ auction_url: auctionUrl });
+                console.log('📦 Request body:', requestBody);
+
+                const response = await fetch('/api/find_bid_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: requestBody
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Bid button finder completed: ${result.message}`, 'status');
+                    console.log('🎉 BID BUTTON FINDER SUCCESSFUL');
+                } else {
+                    addMessage(`Bid button finder failed: ${result.message}`, 'error');
+                    console.log('❌ BID BUTTON FINDER FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 FIND BID BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Find bid button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 BID BUTTON FINDER PROCESS COMPLETE');
+        }
+
+
         function updateBidButtonState() {
             const bidButton = document.getElementById('place-bid-btn');
             const bidAmount = document.getElementById('bid-amount').value;
@@ -653,6 +707,22 @@
             }
             console.log('=== BID BUTTON CLICK HANDLER COMPLETE ===');
         });
+
+        document.getElementById('find-bid-btn').addEventListener('click', function() {
+            console.log('=== FIND BID BUTTON CLICK DETECTED ===');
+            const auctionUrl = document.getElementById('finder-auction-url').value.trim();
+            console.log('Auction URL:', auctionUrl);
+
+            if (auctionUrl) {
+                console.log('✅ Valid auction URL, proceeding to find bid button');
+                findBidButton(auctionUrl);
+            } else {
+                console.log('❌ Invalid auction URL');
+                addMessage('Please enter a valid auction URL', 'error');
+            }
+            console.log('=== FIND BID BUTTON CLICK HANDLER COMPLETE ===');
+        });
+
 
         document.getElementById('bid-amount').addEventListener('input', function() {
             updateBidButtonState();

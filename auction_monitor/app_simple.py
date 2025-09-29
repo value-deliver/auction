@@ -185,6 +185,46 @@ def place_bid():
         traceback.print_exc()
         return jsonify({'success': False, 'message': f'Bid failed: {str(e)}'})
 
+@app.route('/api/find_bid_button', methods=['POST'])
+def find_bid_button():
+    """Run the complete bid button finder functionality"""
+    print("🔍 API /api/find_bid_button endpoint called")
+
+    try:
+        print("📨 Parsing request JSON...")
+        data = request.get_json()
+        print(f"📋 Request data: {data}")
+
+        auction_url = data.get('auction_url')
+        print(f"🔗 Auction URL: {auction_url}")
+
+        if not auction_url:
+            print("❌ No auction URL provided")
+            return jsonify({'success': False, 'message': 'Auction URL is required'})
+
+        print(f"🚀 Running bid button finder for: {auction_url}")
+
+        # Create a temporary monitor instance for bid button finding
+        temp_monitor = AuctionMonitor(socketio_instance)
+
+        # Run bid button finder asynchronously
+        success = asyncio.run(temp_monitor.find_bid_button(auction_url))
+        print(f"📊 Bid button finder result: {success}")
+
+        if success:
+            print("✅ Bid button finder completed successfully")
+            return jsonify({'success': True, 'message': f'Bid button finder completed for: {auction_url}'})
+        else:
+            print("❌ Bid button finder failed")
+            return jsonify({'success': False, 'message': 'Bid button finder failed'})
+
+    except Exception as e:
+        print(f"💥 Find bid button endpoint error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Find bid button failed: {str(e)}'})
+
+
 def start_monitoring_thread(auction_url):
     """Start monitoring in a separate thread"""
     global monitor
