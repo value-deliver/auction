@@ -224,6 +224,40 @@ def find_bid_button():
         traceback.print_exc()
         return jsonify({'success': False, 'message': f'Find bid button failed: {str(e)}'})
 
+@app.route('/api/highlight_bid_button', methods=['POST'])
+def highlight_bid_button():
+    """Manually highlight the bid button with blue color during active monitoring"""
+    print("🔵 API /api/highlight_bid_button endpoint called")
+    global monitor
+
+    if not monitor:
+        print("❌ No monitor instance available")
+        return jsonify({'success': False, 'message': 'No monitor instance available'})
+
+    if not monitor.is_monitoring:
+        print("❌ Monitor is not currently monitoring")
+        return jsonify({'success': False, 'message': 'No active auction monitoring'})
+
+    try:
+        print("🔵 Triggering manual bid button highlight...")
+
+        # Run highlight asynchronously
+        success = asyncio.run(monitor._highlight_bid_button_manual())
+        print(f"📊 Manual highlight result: {success}")
+
+        if success:
+            print("✅ Manual bid button highlight completed successfully")
+            return jsonify({'success': True, 'message': 'Bid button highlighted successfully'})
+        else:
+            print("❌ Manual bid button highlight failed")
+            return jsonify({'success': False, 'message': 'Bid button highlight failed'})
+
+    except Exception as e:
+        print(f"💥 Highlight bid button endpoint error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Highlight failed: {str(e)}'})
+
 
 def start_monitoring_thread(auction_url):
     """Start monitoring in a separate thread"""

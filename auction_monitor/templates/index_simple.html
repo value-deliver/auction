@@ -325,6 +325,13 @@
                 </div>
             </div>
 
+            <div class="control-group">
+                <label>Button Controls:</label>
+                <div class="button-group">
+                    <button type="button" class="btn btn-primary" id="highlight-btn" disabled>🔵 Highlight Bid Button</button>
+                </div>
+            </div>
+
 
             <div class="control-group">
                 <label for="finder-auction-url">Bid Button Finder URL:</label>
@@ -668,12 +675,57 @@
             console.log('🏁 BID BUTTON FINDER PROCESS COMPLETE');
         }
 
+        async function highlightBidButton() {
+            console.log('🔵 STARTING BID BUTTON HIGHLIGHT PROCESS');
+            console.log('🌐 API endpoint: /api/highlight_bid_button');
+            console.log('📡 HTTP method: POST');
+
+            try {
+                console.log('📨 Preparing fetch request...');
+
+                const response = await fetch('/api/highlight_bid_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Bid button highlighted: ${result.message}`, 'status');
+                    console.log('🔵 BID BUTTON HIGHLIGHT SUCCESSFUL');
+                } else {
+                    addMessage(`Bid button highlight failed: ${result.message}`, 'error');
+                    console.log('❌ BID BUTTON HIGHLIGHT FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 HIGHLIGHT BID BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Highlight bid button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 BID BUTTON HIGHLIGHT PROCESS COMPLETE');
+        }
+
 
         function updateBidButtonState() {
             const bidButton = document.getElementById('place-bid-btn');
+            const highlightButton = document.getElementById('highlight-btn');
             const bidAmount = document.getElementById('bid-amount').value;
 
             bidButton.disabled = !isMonitoring || !bidAmount || parseFloat(bidAmount) <= 0;
+            highlightButton.disabled = !isMonitoring;
         }
 
         // Event listeners
@@ -721,6 +773,21 @@
                 addMessage('Please enter a valid auction URL', 'error');
             }
             console.log('=== FIND BID BUTTON CLICK HANDLER COMPLETE ===');
+        });
+
+        document.getElementById('highlight-btn').addEventListener('click', function() {
+            console.log('=== HIGHLIGHT BID BUTTON CLICK DETECTED ===');
+            console.log('Is monitoring active:', isMonitoring);
+            console.log('Button disabled state:', this.disabled);
+
+            if (isMonitoring) {
+                console.log('✅ Monitoring active, proceeding to highlight bid button');
+                highlightBidButton();
+            } else {
+                console.log('❌ Not monitoring, cannot highlight bid button');
+                addMessage('Start monitoring first to highlight bid button', 'error');
+            }
+            console.log('=== HIGHLIGHT BID BUTTON CLICK HANDLER COMPLETE ===');
         });
 
 

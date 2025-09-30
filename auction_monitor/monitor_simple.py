@@ -46,6 +46,7 @@ class AuctionMonitor:
         self.throttler = RequestThrottler()
         self.socketio = socketio_instance
         self._frame_navigation_handler = None  # Store navigation handler reference
+        self._manual_highlight_requested = False  # Flag for manual highlight requests
         logging.basicConfig(filename='auction_monitor.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     async def start_monitoring(self, auction_url):
@@ -312,22 +313,107 @@ class AuctionMonitor:
             print(f"Bid button finder failed: {e}")
             return False
 
+    async def _highlight_bid_button_manual(self):
+        """Manually highlight the bid button with blue color when triggered from UI"""
+        print("🔵 Manual bid button highlight requested - will run in monitoring thread")
+        # Set flag to trigger highlighting in the monitoring loop
+        self._manual_highlight_requested = True
+        return True
+
+    async def _highlight_bid_button_manual_impl(self):
+        """Actual implementation of manual bid button highlighting - runs in monitoring thread"""
+        print("🔵 Starting manual bid button highlight process in monitoring thread...")
+        try:
+            # Find the bid button in the current auction frame
+            # Try multiple selectors for different button types
+            bid_button = None
+            button_selectors = [
+                'button[data-uname="bidCurrentLot"]',  # Active bidding button
+                'button:has-text("Max Bid")',         # Pre-auction Max Bid button
+                'button.btn-auctions:has-text("Max Bid")',  # More specific Max Bid selector
+            ]
+
+            for selector in button_selectors:
+                print(f"🎯 Trying button selector: {selector}")
+                try:
+                    candidate_button = self.auction_frame.locator(selector).first
+                    count = await candidate_button.count()
+                    if count > 0:
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        if is_visible:
+                            bid_button = candidate_button
+                            print(f"✅ Found button with selector: {selector}")
+                            break
+                except Exception as e:
+                    print(f"❌ Selector {selector} failed: {e}")
+                    continue
+
+            if not bid_button:
+                print("❌ No bid button found with any selector")
+                return False
+
+            print("✅ Bid button found, applying highlight...")
+
+            # Highlight the button with blue color (same structure as periodic)
+            await bid_button.evaluate("""
+                (element) => {
+                    const originalStyles = {
+                        backgroundColor: element.style.backgroundColor,
+                        border: element.style.border,
+                        color: element.style.color,
+                        background: element.style.background
+                    };
+
+                    // Apply blue highlighting (same structure as periodic)
+                    element.style.setProperty('background-color', '#0066ff', 'important');
+                    element.style.setProperty('border', '3px solid #003399', 'important');
+                    element.style.setProperty('color', '#ffffff', 'important');
+
+                    // Reset after 3 seconds (longer than periodic 2 seconds)
+                    setTimeout(() => {
+                        element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                        element.style.setProperty('border', originalStyles.border, 'important');
+                        element.style.setProperty('color', originalStyles.color, 'important');
+                    }, 3000);
+                }
+            """)
+            print("🔵 Manual bid button highlight applied successfully")
+            return True
+
+        except Exception as e:
+            print(f"❌ Manual bid button highlighting failed: {e}")
+            return False
+
     async def _highlight_bid_button_periodic(self):
         """Periodically highlight the bid button during monitoring to show system is active"""
         try:
+            print(f"🔄 DEBUG: Periodic method - self.auction_frame type: {type(self.auction_frame)}")
+            print(f"🔄 DEBUG: Periodic method - self.auction_frame: {self.auction_frame}")
             if not self.auction_frame:
                 return
 
             # Find the bid button in the current auction frame
-            bid_button = self.auction_frame.locator('button[data-uname="bidCurrentLot"]').first
+            # Try multiple selectors for different button types
+            bid_button = None
+            button_selectors = [
+                'button[data-uname="bidCurrentLot"]',  # Active bidding button
+                'button:has-text("Max Bid")',         # Pre-auction Max Bid button
+                'button.btn-auctions:has-text("Max Bid")',  # More specific Max Bid selector
+            ]
 
-            # Check if button exists and is visible
-            count = await bid_button.count()
-            if count == 0:
-                return
+            for selector in button_selectors:
+                try:
+                    candidate_button = self.auction_frame.locator(selector).first
+                    count = await candidate_button.count()
+                    if count > 0:
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        if is_visible:
+                            bid_button = candidate_button
+                            break
+                except Exception:
+                    continue
 
-            is_visible = await bid_button.is_visible(timeout=1000)
-            if not is_visible:
+            if not bid_button:
                 return
 
             # Highlight the button briefly
@@ -402,7 +488,7 @@ class AuctionMonitor:
             print(f"✅ Frame content loaded")
 
             # Try the most direct approach - just find the bid button
-            print(f"🎯 Looking for bid button with selector: button[data-uname='bidCurrentLot']")
+            print(f"🎯 Looking for bid button with multiple selectors")
             try:
                 print("Entered try block for bid button detection")
 
@@ -428,30 +514,50 @@ class AuctionMonitor:
                 button_frame = target_frame  # Default to target_frame
                 bid_button_found = False
 
-                for i, sub_frame in enumerate(sub_frames):
-                    try:
-                        # Try to find button in sub_frame
-                        bid_button = sub_frame.locator('button[data-uname="bidCurrentLot"]')
+                # Try multiple selectors for different button types
+                button_selectors = [
+                    'button[data-uname="bidCurrentLot"]',  # Active bidding button
+                    'button:has-text("Max Bid")',         # Pre-auction Max Bid button
+                    'button.btn-auctions:has-text("Max Bid")',  # More specific Max Bid selector
+                ]
+
+                for selector in button_selectors:
+                    print(f"🎯 Trying button selector: {selector}")
+
+                    # Try in sub-frames first
+                    for i, sub_frame in enumerate(sub_frames):
                         try:
-                            await bid_button.wait_for(timeout=5000)
-                            print("✅ Found bid button in sub-frame")
-                            button_frame = sub_frame
+                            bid_button = sub_frame.locator(selector)
+                            try:
+                                await bid_button.wait_for(timeout=2000)
+                                print(f"✅ Found bid button in sub-frame {i} with selector: {selector}")
+                                button_frame = sub_frame
+                                bid_button_found = True
+                                break
+                            except PlaywrightTimeoutError:
+                                continue
+                        except Exception as e:
+                            continue
+
+                    if bid_button_found:
+                        break
+
+                    # Try in main frame
+                    try:
+                        bid_button = target_frame.locator(selector)
+                        try:
+                            await bid_button.wait_for(timeout=2000)
+                            print(f"✅ Found bid button in main auction iframe with selector: {selector}")
                             bid_button_found = True
                             break
                         except PlaywrightTimeoutError:
-                            print("❌ Bid button not in sub-frame")
+                            continue
                     except Exception as e:
-                        print(f"Error accessing sub-frame {i}: {e}")
+                        continue
 
                 if not bid_button_found:
-                    print("Checking for bid button in main auction iframe...")
-                    bid_button = target_frame.locator('button[data-uname="bidCurrentLot"]')
-                    try:
-                        await bid_button.wait_for(timeout=30000)
-                        print("✅ Bid button found in main auction iframe")
-                    except PlaywrightTimeoutError:
-                        print("❌ Bid button not found in main auction iframe either")
-                        return False
+                    print("❌ No bid button found with any selector")
+                    return False
 
                 # Check count
                 count = await bid_button.count()
@@ -1135,6 +1241,15 @@ class AuctionMonitor:
                     except Exception as highlight_error:
                         # Don't print periodic highlight errors to avoid spam
                         pass
+
+                # Check for manual highlight requests
+                if self._manual_highlight_requested:
+                    self._manual_highlight_requested = False  # Reset flag
+                    try:
+                        print("🔵 Processing manual highlight request in monitoring thread...")
+                        await self._highlight_bid_button_manual_impl()
+                    except Exception as manual_error:
+                        print(f"❌ Manual highlight failed: {manual_error}")
 
             except Exception as e:
                 print(f'Monitoring error: {str(e)}')
