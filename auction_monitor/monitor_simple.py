@@ -352,9 +352,25 @@ class AuctionMonitor:
                 print("❌ No bid button found with any selector")
                 return False
 
+            # Find the plus button
+            for selector in plus_selectors:
+                print(f"➕ Trying plus button selector: {selector}")
+                try:
+                    candidate_button = self.auction_frame.locator(selector).first
+                    count = await candidate_button.count()
+                    if count > 0:
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        if is_visible:
+                            plus_button = candidate_button
+                            print(f"✅ Found plus button with selector: {selector}")
+                            break
+                except Exception as e:
+                    print(f"❌ Plus selector {selector} failed: {e}")
+                    continue
+
             print("✅ Bid button found, applying highlight...")
 
-            # Highlight the button with blue color (same structure as periodic)
+            # Highlight the bid button with blue color
             await bid_button.evaluate("""
                 (element) => {
                     const originalStyles = {
@@ -364,12 +380,12 @@ class AuctionMonitor:
                         background: element.style.background
                     };
 
-                    // Apply blue highlighting (same structure as periodic)
+                    // Apply blue highlighting
                     element.style.setProperty('background-color', '#0066ff', 'important');
                     element.style.setProperty('border', '3px solid #003399', 'important');
                     element.style.setProperty('color', '#ffffff', 'important');
 
-                    // Reset after 3 seconds (longer than periodic 2 seconds)
+                    // Reset after 3 seconds
                     setTimeout(() => {
                         element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
                         element.style.setProperty('border', originalStyles.border, 'important');
@@ -378,6 +394,35 @@ class AuctionMonitor:
                 }
             """)
             print("🔵 Manual bid button highlight applied successfully")
+
+            # Highlight the plus button if found
+            if plus_button:
+                await plus_button.evaluate("""
+                    (element) => {
+                        const originalStyles = {
+                            backgroundColor: element.style.backgroundColor,
+                            border: element.style.border,
+                            color: element.style.color,
+                            background: element.style.background
+                        };
+
+                        // Apply red highlighting for plus button
+                        element.style.setProperty('background-color', '#ff4444', 'important');
+                        element.style.setProperty('border', '3px solid #cc0000', 'important');
+                        element.style.setProperty('color', '#ffffff', 'important');
+
+                        // Reset after 3 seconds
+                        setTimeout(() => {
+                            element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                            element.style.setProperty('border', originalStyles.border, 'important');
+                            element.style.setProperty('color', originalStyles.color, 'important');
+                        }, 3000);
+                    }
+                """)
+                print("🔴 Manual plus button highlight applied successfully")
+            else:
+                print("⚠️ Plus button not found, only bid button highlighted")
+
             return True
 
         except Exception as e:
@@ -395,10 +440,16 @@ class AuctionMonitor:
             # Find the bid button in the current auction frame
             # Try multiple selectors for different button types
             bid_button = None
+            plus_button = None
             button_selectors = [
                 'button[data-uname="bidCurrentLot"]',  # Active bidding button
                 'button:has-text("Max Bid")',         # Pre-auction Max Bid button
                 'button.btn-auctions:has-text("Max Bid")',  # More specific Max Bid selector
+            ]
+            plus_selectors = [
+                'button[data-uname="getNextBidValue"]',  # Plus button to increase bid
+                'button.btn-plus',                        # Plus button class
+                'button[aria-label*="Increase bid"]',     # Plus button aria-label
             ]
 
             for selector in button_selectors:
@@ -413,10 +464,23 @@ class AuctionMonitor:
                 except Exception:
                     continue
 
+            # Find the plus button
+            for selector in plus_selectors:
+                try:
+                    candidate_button = self.auction_frame.locator(selector).first
+                    count = await candidate_button.count()
+                    if count > 0:
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        if is_visible:
+                            plus_button = candidate_button
+                            break
+                except Exception:
+                    continue
+
             if not bid_button:
                 return
 
-            # Highlight the button briefly
+            # Highlight the bid button briefly (green)
             await bid_button.evaluate("""
                 (element) => {
                     const originalStyles = {
@@ -426,7 +490,7 @@ class AuctionMonitor:
                         background: element.style.background
                     };
 
-                    // Apply brief highlighting
+                    // Apply brief green highlighting
                     element.style.setProperty('background-color', '#00ff00', 'important');
                     element.style.setProperty('border', '2px solid #ff0000', 'important');
                     element.style.setProperty('color', '#000000', 'important');
@@ -440,7 +504,32 @@ class AuctionMonitor:
                 }
             """)
 
-            print("🔄 Periodic bid button highlight applied")
+            # Highlight the plus button briefly (orange) if found
+            if plus_button:
+                await plus_button.evaluate("""
+                    (element) => {
+                        const originalStyles = {
+                            backgroundColor: element.style.backgroundColor,
+                            border: element.style.border,
+                            color: element.style.color,
+                            background: element.style.background
+                        };
+
+                        // Apply brief orange highlighting
+                        element.style.setProperty('background-color', '#ff8800', 'important');
+                        element.style.setProperty('border', '2px solid #ff4400', 'important');
+                        element.style.setProperty('color', '#000000', 'important');
+
+                        // Reset after 2 seconds
+                        setTimeout(() => {
+                            element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                            element.style.setProperty('border', originalStyles.border, 'important');
+                            element.style.setProperty('color', originalStyles.color, 'important');
+                        }, 2000);
+                    }
+                """)
+
+            print("🔄 Periodic bid and plus button highlight applied")
 
         except Exception as e:
             # Don't log errors for periodic highlighting to avoid spam
