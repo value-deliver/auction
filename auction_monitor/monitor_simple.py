@@ -324,14 +324,21 @@ class AuctionMonitor:
         """Actual implementation of manual bid button highlighting - runs in monitoring thread"""
         print("🔵 Starting manual bid button highlight process in monitoring thread...")
         try:
-            # Find the bid button in the current auction frame
-            # Try multiple selectors for different button types
-            bid_button = None
+            # Define all selectors at the very beginning to ensure they're available
             button_selectors = [
                 'button[data-uname="bidCurrentLot"]',  # Active bidding button
                 'button:has-text("Max Bid")',         # Pre-auction Max Bid button
                 'button.btn-auctions:has-text("Max Bid")',  # More specific Max Bid selector
             ]
+            plus_selectors = [
+                'button[data-uname="getNextBidValue"]',  # Plus button to increase bid
+                'button.btn-plus',                        # Plus button class
+                'button[aria-label*="Increase bid"]',     # Plus button aria-label
+            ]
+            print(f"DEBUG: plus_selectors defined with {len(plus_selectors)} selectors")
+
+            # Find the bid button in the current auction frame
+            bid_button = None
 
             for selector in button_selectors:
                 print(f"🎯 Trying button selector: {selector}")
@@ -353,6 +360,7 @@ class AuctionMonitor:
                 return False
 
             # Find the plus button
+            plus_button = None
             for selector in plus_selectors:
                 print(f"➕ Trying plus button selector: {selector}")
                 try:
