@@ -379,6 +379,9 @@ class AuctionMonitor:
 
             print("✅ Bid button found, applying highlight...")
 
+ #           await bid_button.click()
+            print("🔵 Manual bid button clicked successfully")
+
             # Highlight the bid button with blue color
             await bid_button.evaluate("""
                 (element) => {
@@ -451,6 +454,9 @@ class AuctionMonitor:
                     continue
 
             print("✅ Plus button found, applying highlight...")
+
+            await plus_button.click()
+            print("🔴 Manual plus button clicked successfully")
 
             # Highlight the plus button with red color
             await plus_button.evaluate("""
