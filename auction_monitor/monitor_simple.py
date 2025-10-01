@@ -1341,10 +1341,10 @@ class AuctionMonitor:
 
                 # Check for manual highlight requests
                 if self._manual_highlight_requested:
-                    self._manual_highlight_requested = False  # Reset flag
                     try:
                         print("🔵 Processing manual highlight request in monitoring thread...")
                         await self._highlight_bid_button_manual_impl()
+                        self._manual_highlight_requested = False  # Reset flag once applied to button
                     except Exception as manual_error:
                         print(f"❌ Manual highlight failed: {manual_error}")
 

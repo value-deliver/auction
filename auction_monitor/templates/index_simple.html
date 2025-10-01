@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f5f5;
             min-height: 100vh;
             padding: 20px;
         }
@@ -83,45 +83,48 @@
         }
 
         .auction-id {
-            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
-            color: white;
+            background: white;
+            color: #333;
         }
 
         .current-bid {
-            background: linear-gradient(45deg, #45B7D1, #96CEB4);
-            color: white;
+            background: white;
+            color: #333;
         }
 
         .current-bidder {
-            background: linear-gradient(45deg, #FECA57, #FF9FF3);
+            background: white;
             color: #333;
         }
 
         .time-remaining {
-            background: linear-gradient(45deg, #FF9F43, #EE5A24);
-            color: white;
+            background: white;
+            color: #333;
         }
 
         .active-bidders {
-            background: linear-gradient(45deg, #0ABDE3, #10AC84);
-            color: white;
+            background: white;
+            color: #333;
         }
 
         .status {
-            background: linear-gradient(45deg, #A29BFE, #6C5CE7);
-            color: white;
+            background: white;
+            color: #333;
         }
 
         .status.active {
-            background: linear-gradient(45deg, #00B894, #00CEC9);
+            background: #d4edda;
+            color: #155724;
         }
 
         .status.ended {
-            background: linear-gradient(45deg, #FF7675, #D63031);
+            background: #f8d7da;
+            color: #721c24;
         }
 
         .status.paused {
-            background: linear-gradient(45deg, #FDCB6E, #E17055);
+            background: #fff3cd;
+            color: #856404;
         }
 
         .controls {
@@ -164,12 +167,28 @@
             align-items: end;
         }
 
+        .auction-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .auction-controls input {
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .auction-controls .btn {
+            flex: none;
+            min-width: 140px;
+        }
+
         .bid-amount-input {
             flex: 1;
         }
 
         .bid-button {
-            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            background: #2ecc71;
             color: white;
             padding: 12px 20px;
             border: none;
@@ -182,7 +201,7 @@
 
         .bid-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
         }
 
         .bid-button:disabled {
@@ -211,23 +230,23 @@
         }
 
         .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: #3498db;
             color: white;
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
         }
 
         .btn-danger {
-            background: linear-gradient(45deg, #FF6B6B, #EE5A24);
+            background: #e74c3c;
             color: white;
         }
 
         .btn-danger:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
         }
 
         .status-messages {
@@ -300,20 +319,16 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🚗 Copart Auction Monitor</h1>
-            <p>Real-time auction monitoring dashboard</p>
-        </div>
 
         <div class="controls">
             <form id="monitor-form">
                 <div class="control-group">
-                    <label for="auction-url">Auction URL:</label>
-                    <input type="text" id="auction-url" name="auction_url" placeholder="e.g., /auctionDashboard?auctionDetails=350-A-84240035" value="/auctionDashboard?auctionDetails=833-A">
-                </div>
-                <div class="button-group">
-                    <button type="submit" class="btn btn-primary" id="start-btn">Start Monitoring</button>
-                    <button type="button" class="btn btn-danger" id="stop-btn">Stop Monitoring</button>
+                    <label for="auction-url">Auction ID:</label>
+                    <div class="auction-controls">
+                        <input type="text" id="auction-url" name="auction_url" placeholder="e.g., 833-A" value="833-A">
+                        <button type="submit" class="btn btn-primary" id="start-btn">Start</button>
+                        <button type="button" class="btn btn-danger" id="stop-btn">Stop</button>
+                    </div>
                 </div>
             </form>
 
@@ -325,35 +340,22 @@
                 </div>
             </div>
 
-            <div class="control-group">
-                <label>Button Controls:</label>
-                <div class="button-group">
-                    <button type="button" class="btn btn-primary" id="highlight-btn" disabled>🔵 Highlight Bid Button</button>
-                </div>
-            </div>
 
 
-            <div class="control-group">
-                <label for="finder-auction-url">Bid Button Finder URL:</label>
-                <input type="text" id="finder-auction-url" placeholder="e.g., /auctionDashboard?auctionDetails=832-A" value="/auctionDashboard?auctionDetails=832-A">
-                <button type="button" class="btn btn-primary" id="find-bid-btn">Find Bid Button</button>
-            </div>
         </div>
 
         <div class="dashboard">
             <div class="card auction-id">
-                <div class="card-title">Auction ID</div>
                 <div class="card-value" id="auction-id">Not monitoring</div>
-                <div class="card-subtitle">Current auction</div>
             </div>
 
-            <div class="card lot-title" style="background: linear-gradient(45deg, #667eea, #764ba2); color: white;">
+            <div class="card lot-title" style="background: white; color: #333;">
                 <div class="card-title">Lot Title</div>
                 <div class="card-value" id="lot-title">N/A</div>
                 <div class="card-subtitle">Vehicle description</div>
             </div>
 
-            <div class="card lot-number" style="background: linear-gradient(45deg, #FF9FF3, #FECA57); color: #333;">
+            <div class="card lot-number" style="background: white; color: #333;">
                 <div class="card-title">Lot Number</div>
                 <div class="card-value" id="lot-number">N/A</div>
                 <div class="card-subtitle">Copart lot ID</div>
@@ -365,7 +367,7 @@
                 <div class="card-subtitle">Highest bid</div>
             </div>
 
-            <div class="card bid-suggestion" style="background: linear-gradient(45deg, #FF9F43, #FECA57); color: #333;">
+            <div class="card bid-suggestion" style="background: white; color: #333;">
                 <div class="card-title">Bid Suggestion</div>
                 <div class="card-value" id="bid-suggestion">N/A</div>
                 <div class="card-subtitle">Next bid amount</div>
@@ -522,12 +524,17 @@
 
         async function startMonitoring(formData) {
             try {
+                // Parse the form data to get auction ID and construct full URL
+                const params = new URLSearchParams(formData);
+                const auctionId = params.get('auction_url');
+                const fullUrl = `/auctionDashboard?auctionDetails=${auctionId}`;
+
                 const response = await fetch('/api/start', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: formData
+                    body: `auction_url=${encodeURIComponent(fullUrl)}`
                 });
 
                 const result = await response.json();
@@ -629,103 +636,14 @@
             console.log('🏁 BID PLACEMENT PROCESS COMPLETE');
         }
 
-        async function findBidButton(auctionUrl) {
-            console.log('🔍 STARTING BID BUTTON FINDER PROCESS');
-            console.log('🔗 Auction URL:', auctionUrl);
-            console.log('🌐 API endpoint: /api/find_bid_button');
-            console.log('📡 HTTP method: POST');
 
-            try {
-                console.log('📨 Preparing fetch request...');
-                const requestBody = JSON.stringify({ auction_url: auctionUrl });
-                console.log('📦 Request body:', requestBody);
-
-                const response = await fetch('/api/find_bid_button', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: requestBody
-                });
-
-                console.log('📥 Response received');
-                console.log('📊 Response status:', response.status);
-                console.log('📊 Response status text:', response.statusText);
-
-                const result = await response.json();
-                console.log('📋 Parsed response JSON:', result);
-                console.log('✅ Response success field:', result.success);
-                console.log('📝 Response message:', result.message);
-
-                if (result.success) {
-                    addMessage(`Bid button finder completed: ${result.message}`, 'status');
-                    console.log('🎉 BID BUTTON FINDER SUCCESSFUL');
-                } else {
-                    addMessage(`Bid button finder failed: ${result.message}`, 'error');
-                    console.log('❌ BID BUTTON FINDER FAILED:', result.message);
-                }
-            } catch (error) {
-                console.log('💥 FIND BID BUTTON REQUEST ERROR:', error);
-                console.log('🔍 Error name:', error.name);
-                console.log('🔍 Error message:', error.message);
-                console.log('🔍 Error stack:', error.stack);
-                addMessage(`Find bid button error: ${error.message}`, 'error');
-            }
-
-            console.log('🏁 BID BUTTON FINDER PROCESS COMPLETE');
-        }
-
-        async function highlightBidButton() {
-            console.log('🔵 STARTING BID BUTTON HIGHLIGHT PROCESS');
-            console.log('🌐 API endpoint: /api/highlight_bid_button');
-            console.log('📡 HTTP method: POST');
-
-            try {
-                console.log('📨 Preparing fetch request...');
-
-                const response = await fetch('/api/highlight_bid_button', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({})
-                });
-
-                console.log('📥 Response received');
-                console.log('📊 Response status:', response.status);
-                console.log('📊 Response status text:', response.statusText);
-
-                const result = await response.json();
-                console.log('📋 Parsed response JSON:', result);
-                console.log('✅ Response success field:', result.success);
-                console.log('📝 Response message:', result.message);
-
-                if (result.success) {
-                    addMessage(`Bid button highlighted: ${result.message}`, 'status');
-                    console.log('🔵 BID BUTTON HIGHLIGHT SUCCESSFUL');
-                } else {
-                    addMessage(`Bid button highlight failed: ${result.message}`, 'error');
-                    console.log('❌ BID BUTTON HIGHLIGHT FAILED:', result.message);
-                }
-            } catch (error) {
-                console.log('💥 HIGHLIGHT BID BUTTON REQUEST ERROR:', error);
-                console.log('🔍 Error name:', error.name);
-                console.log('🔍 Error message:', error.message);
-                console.log('🔍 Error stack:', error.stack);
-                addMessage(`Highlight bid button error: ${error.message}`, 'error');
-            }
-
-            console.log('🏁 BID BUTTON HIGHLIGHT PROCESS COMPLETE');
-        }
 
 
         function updateBidButtonState() {
             const bidButton = document.getElementById('place-bid-btn');
-            const highlightButton = document.getElementById('highlight-btn');
             const bidAmount = document.getElementById('bid-amount').value;
 
             bidButton.disabled = !isMonitoring || !bidAmount || parseFloat(bidAmount) <= 0;
-            highlightButton.disabled = !isMonitoring;
         }
 
         // Event listeners
@@ -760,35 +678,7 @@
             console.log('=== BID BUTTON CLICK HANDLER COMPLETE ===');
         });
 
-        document.getElementById('find-bid-btn').addEventListener('click', function() {
-            console.log('=== FIND BID BUTTON CLICK DETECTED ===');
-            const auctionUrl = document.getElementById('finder-auction-url').value.trim();
-            console.log('Auction URL:', auctionUrl);
 
-            if (auctionUrl) {
-                console.log('✅ Valid auction URL, proceeding to find bid button');
-                findBidButton(auctionUrl);
-            } else {
-                console.log('❌ Invalid auction URL');
-                addMessage('Please enter a valid auction URL', 'error');
-            }
-            console.log('=== FIND BID BUTTON CLICK HANDLER COMPLETE ===');
-        });
-
-        document.getElementById('highlight-btn').addEventListener('click', function() {
-            console.log('=== HIGHLIGHT BID BUTTON CLICK DETECTED ===');
-            console.log('Is monitoring active:', isMonitoring);
-            console.log('Button disabled state:', this.disabled);
-
-            if (isMonitoring) {
-                console.log('✅ Monitoring active, proceeding to highlight bid button');
-                highlightBidButton();
-            } else {
-                console.log('❌ Not monitoring, cannot highlight bid button');
-                addMessage('Start monitoring first to highlight bid button', 'error');
-            }
-            console.log('=== HIGHLIGHT BID BUTTON CLICK HANDLER COMPLETE ===');
-        });
 
 
         document.getElementById('bid-amount').addEventListener('input', function() {

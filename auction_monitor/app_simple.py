@@ -78,7 +78,9 @@ def get_status():
 def start_monitoring():
     """Start monitoring an auction"""
     global monitor, monitor_thread
-    print("API /api/start called")  # Debug logging
+    print("🚀🚀🚀 API /api/start called 🚀🚀🚀")  # Debug logging
+    import sys
+    sys.stdout.flush()  # Force flush
 
     # Try to get data from form or JSON
     auction_url = None
@@ -97,19 +99,28 @@ def start_monitoring():
         return jsonify({'success': False, 'message': 'Already monitoring an auction'})
 
     try:
-        print(f"Creating monitor for URL: {auction_url}")  # Debug logging
+        print(f"📝 Auction URL: {auction_url}")  # Debug logging
+        print(f"🔍 Checking if already monitoring...")  # Debug logging
+
+        if monitor and monitor.is_monitoring:
+            print("❌ Already monitoring, returning error")  # Debug logging
+            return jsonify({'success': False, 'message': 'Already monitoring an auction'})
+
+        print("✅ Not already monitoring, proceeding...")  # Debug logging
+        print("🏗️ Creating monitor instance...")  # Debug logging
+
         # Initialize monitor with socketio instance
         global socketio_instance
         socketio_instance = socketio
         monitor = AuctionMonitor(socketio_instance)
-        print("Monitor created successfully")  # Debug logging
+        print("✅ Monitor created successfully")  # Debug logging
 
         # Start monitoring in background thread
-        print("Starting monitoring thread...")  # Debug logging
+        print("🧵 Starting monitoring thread...")  # Debug logging
         monitor_thread = threading.Thread(target=start_monitoring_thread, args=(auction_url,))
         monitor_thread.daemon = True
         monitor_thread.start()
-        print("Monitoring thread started")  # Debug logging
+        print("✅ Monitoring thread started successfully")  # Debug logging
 
         return jsonify({'success': True, 'message': f'Started monitoring: {auction_url}'})
 
@@ -166,18 +177,18 @@ def place_bid():
             print(f"❌ Invalid bid amount: {bid_amount}")
             return jsonify({'success': False, 'message': 'Bid amount must be greater than 0'})
 
-        print(f"🚀 Placing bid for amount: ${bid_amount}")
+        print(f"🔵 Triggering manual bid button highlight for amount: ${bid_amount}")
 
-        # Place bid asynchronously
-        success = asyncio.run(monitor.place_bid(bid_amount))
-        print(f"📊 Bid placement result: {success}")
+        # Trigger manual bid button highlight (same as highlight button)
+        success = asyncio.run(monitor._highlight_bid_button_manual())
+        print(f"📊 Manual highlight trigger result: {success}")
 
         if success:
-            print("✅ Bid placed successfully")
-            return jsonify({'success': True, 'message': f'Bid placed: ${bid_amount}'})
+            print("✅ Bid button highlight triggered successfully")
+            return jsonify({'success': True, 'message': f'Bid button highlighted for: ${bid_amount}'})
         else:
-            print("❌ Bid placement failed")
-            return jsonify({'success': False, 'message': 'Failed to place bid'})
+            print("❌ Bid button highlight trigger failed")
+            return jsonify({'success': False, 'message': 'Failed to highlight bid button'})
 
     except Exception as e:
         print(f"💥 Bid endpoint error: {str(e)}")
@@ -263,10 +274,26 @@ def start_monitoring_thread(auction_url):
     """Start monitoring in a separate thread"""
     global monitor
 
+    print(f"🔄 Monitoring thread started for URL: {auction_url}")
     try:
-        asyncio.run(monitor.start_monitoring(auction_url))
+        print("🚀 About to call monitor.start_monitoring()...")
+
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            loop.run_until_complete(monitor.start_monitoring(auction_url))
+            print("✅ Monitoring completed successfully")
+        finally:
+            loop.close()
+
     except Exception as e:
-        print(f'Monitoring error: {str(e)}')
+        print(f'❌ Monitoring error: {str(e)}')
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("🔚 Monitoring thread finished")
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
