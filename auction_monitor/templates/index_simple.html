@@ -211,6 +211,14 @@
             box-shadow: none;
         }
 
+        .bid-button.highlighted {
+            background: #f39c12;
+        }
+
+        .bid-button.highlighted:hover {
+            box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+        }
+
         .button-group {
             display: flex;
             gap: 10px;
@@ -337,6 +345,8 @@
                 <div class="bid-controls">
                     <input type="number" id="bid-amount" class="bid-amount-input" placeholder="Enter bid amount" min="0" step="1">
                     <button type="button" class="bid-button" id="place-bid-btn" disabled>Place Bid</button>
+                    <button type="button" class="bid-button" id="plus-btn">Bid</button>
+                    <button type="button" class="btn btn-danger" id="real-plus-btn">🔴 Real Plus</button>
                 </div>
             </div>
 
@@ -353,6 +363,12 @@
                 <div class="card-title">Lot Title</div>
                 <div class="card-value" id="lot-title">N/A</div>
                 <div class="card-subtitle">Vehicle description</div>
+            </div>
+
+            <div class="card lot-image" style="background: white; color: #333;">
+                <div class="card-title">Lot Image</div>
+                <img id="lot-image" src="" alt="Lot Image" style="max-width: 100%; height: auto; border-radius: 8px;">
+                <div class="card-subtitle">Current lot photo</div>
             </div>
 
             <div class="card lot-number" style="background: white; color: #333;">
@@ -432,6 +448,7 @@
             document.getElementById('current-bidder').textContent = data.current_bidder || 'N/A';
             document.getElementById('time-remaining').textContent = data.time_remaining || 'N/A';
             document.getElementById('active-bidders').textContent = data.active_bidders || '0';
+            document.getElementById('lot-image').src = data.lot_image || '';
 
             // Auto-populate bid amount input field with suggestion
             const bidSuggestion = data.bid_suggestion;
@@ -575,7 +592,8 @@
                         current_bidder: 'N/A',
                         time_remaining: 'N/A',
                         active_bidders: 0,
-                        status: 'Not monitoring'
+                        status: 'Not monitoring',
+                        lot_image: ''
                     });
 
                     // Clear bid amount input field
@@ -636,14 +654,187 @@
             console.log('🏁 BID PLACEMENT PROCESS COMPLETE');
         }
 
+        async function highlightBidButton() {
+            console.log('🔵 STARTING BID BUTTON HIGHLIGHT PROCESS');
+            console.log('🌐 API endpoint: /api/highlight_bid_button');
+            console.log('📡 HTTP method: POST');
 
+            try {
+                console.log('📨 Preparing fetch request...');
+
+                const response = await fetch('/api/highlight_bid_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Bid button highlighted: ${result.message}`, 'status');
+                    console.log('🔵 BID BUTTON HIGHLIGHT SUCCESSFUL');
+                } else {
+                    addMessage(`Bid button highlight failed: ${result.message}`, 'error');
+                    console.log('❌ BID BUTTON HIGHLIGHT FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 HIGHLIGHT BID BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Highlight bid button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 BID BUTTON HIGHLIGHT PROCESS COMPLETE');
+        }
+
+        async function highlightPlusButton() {
+            console.log('🔴 STARTING PLUS BUTTON HIGHLIGHT PROCESS');
+            console.log('🌐 API endpoint: /api/highlight_plus_button');
+            console.log('📡 HTTP method: POST');
+
+            try {
+                console.log('📨 Preparing fetch request...');
+
+                const response = await fetch('/api/highlight_plus_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Plus button highlighted: ${result.message}`, 'status');
+                    console.log('🔴 PLUS BUTTON HIGHLIGHT SUCCESSFUL');
+                } else {
+                    addMessage(`Plus button highlight failed: ${result.message}`, 'error');
+                    console.log('❌ PLUS BUTTON HIGHLIGHT FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 HIGHLIGHT PLUS BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Highlight plus button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 PLUS BUTTON HIGHLIGHT PROCESS COMPLETE');
+        }
+
+        async function highlightPlusButton() {
+            console.log('🔴 STARTING PLUS BUTTON HIGHLIGHT PROCESS');
+            console.log('🌐 API endpoint: /api/highlight_plus_button');
+            console.log('📡 HTTP method: POST');
+
+            try {
+                console.log('📨 Preparing fetch request...');
+
+                const response = await fetch('/api/highlight_plus_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Plus button highlighted: ${result.message}`, 'status');
+                    console.log('🔴 PLUS BUTTON HIGHLIGHT SUCCESSFUL');
+                } else {
+                    addMessage(`Plus button highlight failed: ${result.message}`, 'error');
+                    console.log('❌ PLUS BUTTON HIGHLIGHT FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 HIGHLIGHT PLUS BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Highlight plus button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 PLUS BUTTON HIGHLIGHT PROCESS COMPLETE');
+        }
+
+
+ async function highlightPlusButton() {
+            console.log('🔵 STARTING BID BUTTON HIGHLIGHT PROCESS');
+            console.log('🌐 API endpoint: /api/highlight_plus_button');
+            console.log('📡 HTTP method: POST');
+
+            try {
+                console.log('📨 Preparing fetch request...');
+
+                const response = await fetch('/api/highlight_plus_button', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                console.log('📥 Response received');
+                console.log('📊 Response status:', response.status);
+                console.log('📊 Response status text:', response.statusText);
+
+                const result = await response.json();
+                console.log('📋 Parsed response JSON:', result);
+                console.log('✅ Response success field:', result.success);
+                console.log('📝 Response message:', result.message);
+
+                if (result.success) {
+                    addMessage(`Bid button highlighted: ${result.message}`, 'status');
+                    console.log('🔵 BID BUTTON HIGHLIGHT SUCCESSFUL');
+                } else {
+                    addMessage(`Bid button highlight failed: ${result.message}`, 'error');
+                    console.log('❌ BID BUTTON HIGHLIGHT FAILED:', result.message);
+                }
+            } catch (error) {
+                console.log('💥 HIGHLIGHT BID BUTTON REQUEST ERROR:', error);
+                console.log('🔍 Error name:', error.name);
+                console.log('🔍 Error message:', error.message);
+                console.log('🔍 Error stack:', error.stack);
+                addMessage(`Highlight bid button error: ${error.message}`, 'error');
+            }
+
+            console.log('🏁 BID BUTTON HIGHLIGHT PROCESS COMPLETE');
+        }
 
 
         function updateBidButtonState() {
             const bidButton = document.getElementById('place-bid-btn');
+            const plusButton = document.getElementById('plus-btn');
             const bidAmount = document.getElementById('bid-amount').value;
 
             bidButton.disabled = !isMonitoring || !bidAmount || parseFloat(bidAmount) <= 0;
+            plusButton.disabled = !isMonitoring;
         }
 
         // Event listeners
@@ -683,6 +874,36 @@
 
         document.getElementById('bid-amount').addEventListener('input', function() {
             updateBidButtonState();
+        });
+
+        document.getElementById('plus-btn').addEventListener('click', function() {
+            console.log('=== PLUS BUTTON CLICK DETECTED ===');
+            console.log('Is monitoring active:', isMonitoring);
+            console.log('Button disabled state:', this.disabled);
+
+            if (isMonitoring) {
+                console.log('✅ Monitoring active, proceeding to highlight bid button');
+                highlightBidButton();
+            } else {
+                console.log('❌ Not monitoring, cannot highlight bid button');
+                addMessage('Start monitoring first to highlight bid button', 'error');
+            }
+            console.log('=== PLUS BUTTON CLICK HANDLER COMPLETE ===');
+        });
+
+        document.getElementById('real-plus-btn').addEventListener('click', function() {
+            console.log('=== REAL PLUS BUTTON CLICK DETECTED ===');
+            console.log('Is monitoring active:', isMonitoring);
+            console.log('Button disabled state:', this.disabled);
+
+            if (isMonitoring) {
+                console.log('✅ Monitoring active, proceeding to highlight bid button');
+                highlightPlusButton();
+            } else {
+                console.log('❌ Not monitoring, cannot highlight bid button');
+                addMessage('Start monitoring first to highlight bid button', 'error');
+            }
+            console.log('=== REAL PLUS BUTTON CLICK HANDLER COMPLETE ===');
         });
 
         // Initialize

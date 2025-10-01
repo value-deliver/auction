@@ -46,7 +46,8 @@ class AuctionMonitor:
         self.throttler = RequestThrottler()
         self.socketio = socketio_instance
         self._frame_navigation_handler = None  # Store navigation handler reference
-        self._manual_highlight_requested = False  # Flag for manual highlight requests
+        self._manual_bid_highlight_requested = False  # Flag for manual highlight requests
+        self._manual_plus_highlight_requested = False  # Flag for manual plus highlight requests
         logging.basicConfig(filename='auction_monitor.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     async def start_monitoring(self, auction_url):
@@ -317,7 +318,7 @@ class AuctionMonitor:
         """Manually highlight the bid button with blue color when triggered from UI"""
         print("🔵 Manual bid button highlight requested - will run in monitoring thread")
         # Set flag to trigger highlighting in the monitoring loop
-        self._manual_highlight_requested = True
+        self._manual_bid_highlight_requested = True
         return True
 
     async def _highlight_bid_button_manual_impl(self):
@@ -403,33 +404,78 @@ class AuctionMonitor:
             """)
             print("🔵 Manual bid button highlight applied successfully")
 
-            # Highlight the plus button if found
-            if plus_button:
-                await plus_button.evaluate("""
-                    (element) => {
-                        const originalStyles = {
-                            backgroundColor: element.style.backgroundColor,
-                            border: element.style.border,
-                            color: element.style.color,
-                            background: element.style.background
-                        };
+            return True
 
-                        // Apply red highlighting for plus button
-                        element.style.setProperty('background-color', '#ff4444', 'important');
-                        element.style.setProperty('border', '3px solid #cc0000', 'important');
-                        element.style.setProperty('color', '#ffffff', 'important');
+        except Exception as e:
+            print(f"❌ Manual bid button highlighting failed: {e}")
+            return False
+        
 
-                        // Reset after 3 seconds
-                        setTimeout(() => {
-                            element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
-                            element.style.setProperty('border', originalStyles.border, 'important');
-                            element.style.setProperty('color', originalStyles.color, 'important');
-                        }, 3000);
-                    }
-                """)
-                print("🔴 Manual plus button highlight applied successfully")
-            else:
-                print("⚠️ Plus button not found, only bid button highlighted")
+    async def _highlight_plus_button_manual(self):
+        """Manually highlight the plus button with red color when triggered from UI"""
+        print("🔴 Manual plus button highlight requested - will run in monitoring thread")
+        # Set flag to trigger highlighting in the monitoring loop
+        self._manual_plus_highlight_requested = True
+        return True
+
+    async def _highlight_plus_button_manual_impl(self):
+        """Actual implementation of manual bid button highlighting - runs in monitoring thread"""
+        print("🔵 Starting manual bid button highlight process in monitoring thread...")
+        try:
+            # Define all selectors at the very beginning to ensure they're available
+            plus_selectors = [
+                'button[data-uname="getNextBidValue"]',  # Plus button to increase bid
+                'button.btn-plus',                        # Plus button class
+                'button[aria-label*="Increase bid"]',     # Plus button aria-label
+            ]
+            print(f"DEBUG: plus_selectors defined with {len(plus_selectors)} selectors")
+
+            # Find the bid button in the current auction frame
+            bid_button = None
+
+            # Find the plus button
+            plus_button = None
+            for selector in plus_selectors:
+                print(f"➕ Trying plus button selector: {selector}")
+                try:
+                    candidate_button = self.auction_frame.locator(selector).first
+                    count = await candidate_button.count()
+                    if count > 0:
+                        is_visible = await candidate_button.is_visible(timeout=1000)
+                        if is_visible:
+                            plus_button = candidate_button
+                            print(f"✅ Found plus button with selector: {selector}")
+                            break
+                except Exception as e:
+                    print(f"❌ Plus selector {selector} failed: {e}")
+                    continue
+
+            print("✅ Plus button found, applying highlight...")
+
+            # Highlight the plus button with red color
+            await plus_button.evaluate("""
+                (element) => {
+                    const originalStyles = {
+                        backgroundColor: element.style.backgroundColor,
+                        border: element.style.border,
+                        color: element.style.color,
+                        background: element.style.background
+                    };
+
+                    // Apply red highlighting
+                    element.style.setProperty('background-color', '#ff4444', 'important');
+                    element.style.setProperty('border', '3px solid #cc0000', 'important');
+                    element.style.setProperty('color', '#ffffff', 'important');
+
+                    // Reset after 3 seconds
+                    setTimeout(() => {
+                        element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                        element.style.setProperty('border', originalStyles.border, 'important');
+                        element.style.setProperty('color', originalStyles.color, 'important');
+                    }, 3000);
+                }
+            """)
+            print("🔵 Manual plus button highlight applied successfully")
 
             return True
 
@@ -1330,23 +1376,32 @@ class AuctionMonitor:
                             except Exception as reinit_error:
                                 print(f"Failed to reinitialize iframe access: {reinit_error}")
 
-                # Periodic bid button highlighting - every 30 seconds (reduced frequency)
-                if not hasattr(self, '_last_button_highlight') or current_time - self._last_button_highlight > 30:
-                    self._last_button_highlight = current_time
-                    try:
-                        await self._highlight_bid_button_periodic()
-                    except Exception as highlight_error:
-                        # Don't print periodic highlight errors to avoid spam
-                        pass
+                # Periodic bid button highlighting - disabled
+                # if not hasattr(self, '_last_button_highlight') or current_time - self._last_button_highlight > 30:
+                #     self._last_button_highlight = current_time
+                #     try:
+                #         await self._highlight_bid_button_periodic()
+                #     except Exception as highlight_error:
+                #         # Don't print periodic highlight errors to avoid spam
+                #         pass
 
                 # Check for manual highlight requests
-                if self._manual_highlight_requested:
+                if self._manual_bid_highlight_requested:
                     try:
-                        print("🔵 Processing manual highlight request in monitoring thread...")
+                        print("🔵 Processing manual bid highlight request in monitoring thread...")
                         await self._highlight_bid_button_manual_impl()
-                        self._manual_highlight_requested = False  # Reset flag once applied to button
+                        self._manual_bid_highlight_requested = False  # Reset flag once applied to button
                     except Exception as manual_error:
-                        print(f"❌ Manual highlight failed: {manual_error}")
+                        print(f"❌ Manual bid highlight failed: {manual_error}")
+
+                # Check for manual plus highlight requests
+                if self._manual_plus_highlight_requested:
+                    try:
+                        print("🔴 Processing manual plus highlight request in monitoring thread...")
+                        await self._highlight_plus_button_manual_impl()
+                        self._manual_plus_highlight_requested = False  # Reset flag once applied to button
+                    except Exception as manual_error:
+                        print(f"❌ Manual plus highlight failed: {manual_error}")
 
             except Exception as e:
                 print(f'Monitoring error: {str(e)}')
