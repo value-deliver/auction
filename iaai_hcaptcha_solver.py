@@ -33,6 +33,18 @@ def load_env_file():
 
 load_env_file()
 
+# hCaptcha Challenger integration
+try:
+    from hcaptcha_challenger.agents.playwright.control import Radagon
+    from hcaptcha_challenger import ModelHub
+    HCAPTCHA_CHALLENGER_AVAILABLE = True
+    print("hcaptcha-challenger available")
+except ImportError as e:
+    HCAPTCHA_CHALLENGER_AVAILABLE = False
+    print(f"hcaptcha-challenger not available: {e}")
+    print("Install with: pip install hcaptcha-challenger")
+    print("Or run with: python -m pip install hcaptcha-challenger")
+
 # Configuration
 SOLVECAPTCHA_API_KEY = os.environ.get('SOLVECAPTCHA_API_KEY')
 if not SOLVECAPTCHA_API_KEY:
@@ -441,8 +453,148 @@ def bypass(sitekey, host, proxy):
     except:
         return False
 
-def solve_hcaptcha(sitekey, page_url):
-    """Solve hCaptcha using free bypass if proxy available, otherwise SolveCaptcha API"""
+async def solve_hcaptcha_with_challenger(page, site_key, page_url):
+    """Solve hCaptcha using hcaptcha-challenger library"""
+    if not HCAPTCHA_CHALLENGER_AVAILABLE:
+        print("hcaptcha-challenger not available, falling back to other methods")
+        return False
+
+    try:
+        print("Solving hCaptcha with hcaptcha-challenger (local AI)...")
+
+        # First, check if there's already a challenge active
+        challenge_selectors = [
+            '.rc-imageselect',
+            '.rc-image-tile',
+            '.challenge-container',
+            '[aria-describedby*="rc-imageselect"]'
+        ]
+
+        challenge_active = False
+        for selector in challenge_selectors:
+            try:
+                if await page.locator(selector).is_visible(timeout=1000):
+                    challenge_active = True
+                    print(f"Challenge already active: {selector}")
+                    break
+            except:
+                continue
+
+        # If no challenge is active, click the checkbox to trigger one
+        if not challenge_active:
+            print("No active challenge found, clicking hCaptcha checkbox to trigger challenge...")
+
+            # hCaptcha checkbox selectors (more comprehensive)
+            checkbox_selectors = [
+                '.h-captcha iframe',  # Click the hCaptcha iframe directly
+                '[data-sitekey] iframe',  # Any iframe within sitekey element
+                'iframe[src*="hcaptcha"]',  # hCaptcha iframe by src
+                '.recaptcha-checkbox-border',  # Fallback to reCAPTCHA selectors
+                '.rc-anchor-checkbox',
+                '[role="checkbox"]',
+                '.recaptcha-checkbox'
+            ]
+
+            checkbox_clicked = False
+            for selector in checkbox_selectors:
+                try:
+                    print(f"Trying checkbox selector: {selector}")
+                    element = page.locator(selector).first
+
+                    # For iframes, we need to click them differently
+                    if 'iframe' in selector:
+                        # Check if iframe is visible and clickable
+                        if await element.is_visible(timeout=2000):
+                            print(f"Found hCaptcha iframe with selector: {selector}")
+                            # Click in the center of the iframe
+                            box = await element.bounding_box()
+                            if box:
+                                x = box['x'] + box['width'] / 2
+                                y = box['y'] + box['height'] / 2
+                                await page.mouse.click(x, y)
+                                print(f"Clicked hCaptcha iframe at coordinates ({x}, {y})")
+                                checkbox_clicked = True
+                                await asyncio.sleep(3)  # Wait for challenge to appear
+                                break
+                    else:
+                        # Regular element clicking
+                        if await element.is_visible(timeout=2000):
+                            print(f"Found checkbox with selector: {selector}")
+                            await element.click()
+                            print("Clicked hCaptcha checkbox")
+                            checkbox_clicked = True
+                            await asyncio.sleep(3)  # Wait for challenge to appear
+                            break
+
+                except Exception as e:
+                    print(f"Error with selector {selector}: {e}")
+                    continue
+
+            if not checkbox_clicked:
+                print("Could not find or click hCaptcha checkbox/iframe")
+                print("Try clicking the checkbox manually in the browser to test the solver")
+                # Don't return False here - let the solver run anyway in case challenge appears
+
+        # Initialize ModelHub and Radagon solver
+        modelhub = ModelHub()
+        solver = Radagon(page=page, modelhub=modelhub)
+
+        # The solver should automatically handle the hCaptcha challenge
+        print("Radagon solver initialized - solving hCaptcha challenge...")
+
+        # Wait for the solver to complete (it handles the challenge automatically)
+        await asyncio.sleep(5)  # Give more time for solving
+
+        # Check if we got a token (hCaptcha sets h-captcha-response)
+        try:
+            token_check = await page.evaluate("document.querySelector('[name=\"h-captcha-response\"]')?.value || null")
+        except Exception as js_error:
+            print(f"JavaScript evaluation error: {js_error}")
+            token_check = None
+
+        if token_check and len(token_check) > 10:
+            print(f"hcaptcha-challenger solved! Token found: {token_check[:50]}...")
+            return token_check  # Return the token directly
+        else:
+            print("No token found after solving attempt")
+            # Check if challenge is still present
+            challenge_still_active = False
+            for selector in challenge_selectors:
+                try:
+                    if await page.locator(selector).is_visible(timeout=1000):
+                        challenge_still_active = True
+                        break
+                except:
+                    continue
+
+            if challenge_still_active:
+                print("Challenge still active - solver may need more time or failed")
+            else:
+                print("Challenge completed but no token found - possible solver issue")
+            return False
+
+    except Exception as e:
+        print(f"Error solving hCaptcha with challenger: {e}")
+        return False
+
+async def solve_hcaptcha(sitekey, page_url, page):
+    """Solve hCaptcha using challenger (primary), free bypass (secondary), or SolveCaptcha API (fallback)"""
+    # Try hCaptcha Challenger first (local, free, fast)
+    if HCAPTCHA_CHALLENGER_AVAILABLE:
+        print("Trying hCaptcha Challenger (local AI solver)...")
+        try:
+            token = await solve_hcaptcha_with_challenger(page, sitekey, page_url)
+            if token:
+                print("hCaptcha solved successfully with hCaptcha Challenger!")
+                print(f"Token: {token[:50]}...")
+                return {
+                    'token': token,
+                    'user_agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36"
+                }
+        except Exception as e:
+            print(f"Error with hCaptcha Challenger: {e}")
+
+    # Try free bypass if proxy available
     if PROXY:
         print(f"Attempting free hCaptcha bypass with proxy: {PROXY}")
         try:
@@ -460,8 +612,9 @@ def solve_hcaptcha(sitekey, page_url):
         except Exception as e:
             print(f"Error with free bypass: {e}, falling back to SolveCaptcha API")
 
+    # Fallback to SolveCaptcha API
     if not SOLVECAPTCHA_API_KEY:
-        print("No SolveCaptcha API key available and free bypass failed or not configured")
+        print("No SolveCaptcha API key available and other methods failed")
         return None
 
     try:
@@ -705,7 +858,7 @@ async def main():
                 # Solve hCaptcha
                 page_url = page.url
                 print(f"Page URL for CAPTCHA: {page_url}")
-                solution = solve_hcaptcha(sitekey, page_url)
+                solution = await solve_hcaptcha(sitekey, page_url, page)
 
                 if solution:
                     token = solution['token']
