@@ -486,7 +486,9 @@ async def solve_hcaptcha_with_challenger(page, site_key, page_url):
 
             # hCaptcha checkbox selectors (more comprehensive)
             checkbox_selectors = [
+                '.h-captcha',  # Click the hCaptcha div directly
                 '.h-captcha iframe',  # Click the hCaptcha iframe directly
+                '[data-sitekey]',  # Click any element with sitekey
                 '[data-sitekey] iframe',  # Any iframe within sitekey element
                 'iframe[src*="hcaptcha"]',  # hCaptcha iframe by src
                 '.recaptcha-checkbox-border',  # Fallback to reCAPTCHA selectors
@@ -501,30 +503,14 @@ async def solve_hcaptcha_with_challenger(page, site_key, page_url):
                     print(f"Trying checkbox selector: {selector}")
                     element = page.locator(selector).first
 
-                    # For iframes, we need to click them differently
-                    if 'iframe' in selector:
-                        # Check if iframe is visible and clickable
-                        if await element.is_visible(timeout=2000):
-                            print(f"Found hCaptcha iframe with selector: {selector}")
-                            # Click in the center of the iframe
-                            box = await element.bounding_box()
-                            if box:
-                                x = box['x'] + box['width'] / 2
-                                y = box['y'] + box['height'] / 2
-                                await page.mouse.click(x, y)
-                                print(f"Clicked hCaptcha iframe at coordinates ({x}, {y})")
-                                checkbox_clicked = True
-                                await asyncio.sleep(3)  # Wait for challenge to appear
-                                break
-                    else:
-                        # Regular element clicking
-                        if await element.is_visible(timeout=2000):
-                            print(f"Found checkbox with selector: {selector}")
-                            await element.click()
-                            print("Clicked hCaptcha checkbox")
-                            checkbox_clicked = True
-                            await asyncio.sleep(3)  # Wait for challenge to appear
-                            break
+                    # Check if element is visible and clickable
+                    if await element.is_visible(timeout=2000):
+                        print(f"Found clickable element with selector: {selector}")
+                        await element.click()
+                        print(f"Clicked element with selector: {selector}")
+                        checkbox_clicked = True
+                        await asyncio.sleep(3)  # Wait for challenge to appear
+                        break
 
                 except Exception as e:
                     print(f"Error with selector {selector}: {e}")
