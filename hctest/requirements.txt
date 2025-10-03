@@ -1,0 +1,2 @@
+hcaptcha-challenger>=0.18.0
+playwright>=1.40.0
