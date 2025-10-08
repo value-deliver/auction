@@ -129,7 +129,7 @@ class ChallengeCapture:
         logger.info(f"Saved challenge to: {filepath}")
         return str(filepath)
 
-    async def capture_from_url(self, url: str, wait_time: int = 5000) -> Optional[str]:
+    async def capture_from_url(self, url: str, wait_time: int = 5000, trigger_login: bool = False) -> Optional[str]:
         """Capture hCaptcha challenge from a specific URL."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=False)
@@ -145,6 +145,10 @@ class ChallengeCapture:
 
                 # Wait for page to load
                 await page.wait_for_timeout(wait_time)
+
+                # If login triggering is enabled, try to perform login actions
+                if trigger_login:
+                    await self._trigger_login_flow(page)
 
                 # Check for hCaptcha
                 if await self.wait_for_hcaptcha(page):
@@ -165,13 +169,118 @@ class ChallengeCapture:
 
         return None
 
-    async def capture_multiple_challenges(self, urls: List[str], delay_between: int = 3000) -> List[str]:
+    async def _trigger_login_flow(self, page):
+        """Attempt to trigger hCaptcha by performing login actions."""
+        try:
+            logger.info("Attempting to trigger hCaptcha via login flow...")
+
+            # Common login form selectors
+            login_selectors = [
+                'input[type="email"]',
+                'input[name="email"]',
+                'input[name="username"]',
+                'input[type="text"]',
+                '#email',
+                '#username'
+            ]
+
+            password_selectors = [
+                'input[type="password"]',
+                'input[name="password"]',
+                '#password'
+            ]
+
+            submit_selectors = [
+                'button[type="submit"]',
+                'input[type="submit"]',
+                'button:has-text("Login")',
+                'button:has-text("Sign In")',
+                'button:has-text("Log In")',
+                '.login-btn',
+                '#login-button'
+            ]
+
+            # Try to find and fill email/username field
+            email_field = None
+            for selector in login_selectors:
+                try:
+                    field = page.locator(selector).first
+                    if await field.is_visible():
+                        email_field = field
+                        logger.info(f"Found email field: {selector}")
+                        break
+                except:
+                    continue
+
+            # Try to find password field
+            password_field = None
+            for selector in password_selectors:
+                try:
+                    field = page.locator(selector).first
+                    if await field.is_visible():
+                        password_field = field
+                        logger.info(f"Found password field: {selector}")
+                        break
+                except:
+                    continue
+
+            # Try to find submit button
+            submit_button = None
+            for selector in submit_selectors:
+                try:
+                    button = page.locator(selector).first
+                    if await button.is_visible():
+                        submit_button = button
+                        logger.info(f"Found submit button: {selector}")
+                        break
+                except:
+                    continue
+
+            # If we found the form elements, fill them with dummy data and submit
+            if email_field and password_field and submit_button:
+                logger.info("Filling login form with dummy credentials...")
+
+                # Fill with dummy credentials that will likely fail but trigger hCaptcha
+                await email_field.fill("test@example.com")
+                await password_field.fill("dummy_password_123")
+
+                # Click submit to trigger hCaptcha
+                await submit_button.click()
+                logger.info("Clicked submit button - waiting for hCaptcha...")
+
+                # Wait a bit for hCaptcha to appear
+                await page.wait_for_timeout(3000)
+
+            else:
+                logger.warning("Could not find complete login form - trying alternative triggers")
+
+                # Alternative: look for any buttons that might trigger hCaptcha
+                alt_buttons = page.locator('button, input[type="submit"], a[href*="login"], a[href*="signin"]')
+                count = await alt_buttons.count()
+
+                for i in range(min(count, 3)):  # Try first 3 buttons
+                    try:
+                        button = alt_buttons.nth(i)
+                        if await button.is_visible():
+                            button_text = await button.text_content()
+                            logger.info(f"Trying to click button: '{button_text[:30]}...'")
+                            await button.click()
+                            await page.wait_for_timeout(2000)
+                            break
+                    except Exception as e:
+                        logger.debug(f"Button click failed: {e}")
+                        continue
+
+        except Exception as e:
+            logger.warning(f"Login flow triggering failed: {e}")
+
+    async def capture_multiple_challenges(self, urls: List[str], delay_between: int = 3000, trigger_login: bool = False) -> List[str]:
         """Capture challenges from multiple URLs."""
         captured_files = []
 
         for i, url in enumerate(urls):
             logger.info(f"Processing URL {i+1}/{len(urls)}: {url}")
-            filepath = await self.capture_from_url(url)
+            filepath = await self.capture_from_url(url, trigger_login=trigger_login)
             if filepath:
                 captured_files.append(filepath)
 
@@ -190,6 +299,7 @@ async def main():
     parser.add_argument("--urls-file", help="File containing URLs (one per line)")
     parser.add_argument("--output-dir", default="captured_challenges", help="Output directory")
     parser.add_argument("--wait-time", type=int, default=5000, help="Wait time after page load (ms)")
+    parser.add_argument("--trigger-login", action="store_true", help="Attempt to trigger hCaptcha by performing login actions")
 
     args = parser.parse_args()
 
@@ -197,7 +307,7 @@ async def main():
 
     if args.url:
         logger.info("Starting single URL capture...")
-        result = await capture.capture_from_url(args.url, args.wait_time)
+        result = await capture.capture_from_url(args.url, args.wait_time, args.trigger_login)
         if result:
             logger.info(f"✅ Challenge captured: {result}")
         else:
@@ -209,7 +319,7 @@ async def main():
             with open(args.urls_file, 'r') as f:
                 urls = [line.strip() for line in f if line.strip()]
 
-            results = await capture.capture_multiple_challenges(urls)
+            results = await capture.capture_multiple_challenges(urls, trigger_login=args.trigger_login)
             logger.info(f"✅ Captured {len(results)} challenges")
 
         except FileNotFoundError:
