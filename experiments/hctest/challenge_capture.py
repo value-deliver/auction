@@ -119,52 +119,27 @@ class ChallengeCapture:
             challenge_frame = None
             iframe_element = None
 
-            # Strategy 1: Look for iframes with challenge content
+            # After checkbox click, find any hCaptcha iframe - the challenge should be loaded
             all_iframes = await page.locator('iframe').all()
-            logger.info(f"Found {len(all_iframes)} total iframes on page")
+            logger.info(f"Found {len(all_iframes)} total iframes on page after checkbox click")
 
             for i, iframe in enumerate(all_iframes):
                 try:
                     src = await iframe.get_attribute('src') or ""
                     logger.debug(f"Iframe {i}: src={src[:100]}...")
                     if 'hcaptcha' in src.lower() and await iframe.is_visible():
-                        logger.info(f"Checking hCaptcha iframe {i}")
-                        # Get the frame content
+                        logger.info(f"Using hCaptcha iframe {i} for capture")
                         frame = await iframe.content_frame()
                         if frame:
-                            # Check if this frame contains challenge elements
-                            challenge_selectors = ['.challenge', '.task', '.prompt', '[class*="challenge"]', '.image', '.grid']
-                            for selector in challenge_selectors:
-                                elements = await frame.locator(selector).all()
-                                if elements:
-                                    logger.info(f"Found {len(elements)} elements with selector '{selector}' in iframe {i}")
-                                    challenge_frame = frame
-                                    iframe_element = iframe
-                                    logger.info("Found challenge iframe with content")
-                                    break
-                            if challenge_frame:
-                                break
+                            challenge_frame = frame
+                            iframe_element = iframe
+                            break
                 except Exception as e:
-                    logger.debug(f"Error checking iframe {i}: {e}")
+                    logger.debug(f"Error accessing iframe {i}: {e}")
                     continue
 
-            # Strategy 2: If no challenge frame found, try the first visible hcaptcha iframe
             if not challenge_frame:
-                for iframe in all_iframes:
-                    try:
-                        src = await iframe.get_attribute('src') or ""
-                        if 'hcaptcha' in src.lower() and await iframe.is_visible():
-                            frame = await iframe.content_frame()
-                            if frame:
-                                challenge_frame = frame
-                                iframe_element = iframe
-                                logger.info("Using fallback hCaptcha iframe")
-                                break
-                    except:
-                        continue
-
-            if not challenge_frame:
-                logger.warning("No suitable challenge iframe found")
+                logger.warning("No hCaptcha iframe found after checkbox click")
                 return None
 
             # Extract challenge type and prompt
