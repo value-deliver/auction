@@ -39,30 +39,101 @@ class ChallengeCapture:
         self.captured_challenges: List[Dict[str, Any]] = []
 
     async def wait_for_hcaptcha(self, page: Page, timeout: int = 30000) -> bool:
-        """Wait for hCaptcha challenge to appear."""
-        try:
-            # Wait for hCaptcha iframe or challenge elements
-            await page.wait_for_selector(
-                'iframe[src*="hcaptcha.com"]',
-                timeout=timeout
-            )
-            logger.info("hCaptcha iframe detected")
-            return True
-        except Exception as e:
-            logger.warning(f"No hCaptcha detected within timeout: {e}")
-            return False
+        """Wait for hCaptcha challenge to appear using multiple detection strategies."""
+        start_time = asyncio.get_event_loop().time()
+
+        while (asyncio.get_event_loop().time() - start_time) * 1000 < timeout:
+            try:
+                # Strategy 1: Check for hCaptcha iframe by src
+                iframe_count = await page.locator('iframe[src*="hcaptcha.com"]').count()
+                if iframe_count > 0:
+                    logger.info(f"hCaptcha iframe detected (src pattern): {iframe_count} iframes")
+                    return True
+
+                # Strategy 2: Check for hCaptcha iframe by class or other attributes
+                hcaptcha_iframes = await page.locator('iframe').all()
+                for iframe in hcaptcha_iframes:
+                    try:
+                        src = await iframe.get_attribute('src') or ""
+                        if 'hcaptcha' in src.lower():
+                            logger.info("hCaptcha iframe detected (src content)")
+                            return True
+                    except:
+                        continue
+
+                # Strategy 3: Check for hCaptcha div containers
+                hcaptcha_divs = [
+                    'div[class*="hcaptcha"]',
+                    'div[id*="hcaptcha"]',
+                    'div[data-sitekey]',
+                    '.h-captcha'
+                ]
+
+                for selector in hcaptcha_divs:
+                    try:
+                        element = page.locator(selector).first
+                        if await element.is_visible():
+                            logger.info(f"hCaptcha container detected: {selector}")
+                            return True
+                    except:
+                        continue
+
+                # Strategy 4: Check for hCaptcha script tags
+                scripts = await page.locator('script[src*="hcaptcha"]').all()
+                if scripts:
+                    logger.info(f"hCaptcha scripts detected: {len(scripts)}")
+                    return True
+
+                # Strategy 5: Check page content for hCaptcha indicators
+                content = await page.content()
+                if 'hcaptcha' in content.lower():
+                    logger.info("hCaptcha content detected in page")
+                    return True
+
+                # Wait a bit before checking again
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                logger.debug(f"Detection check failed: {e}")
+                await asyncio.sleep(0.5)
+
+        logger.warning(f"No hCaptcha detected within {timeout}ms timeout")
+        return False
 
     async def capture_challenge_data(self, page: Page) -> Optional[Dict[str, Any]]:
         """Capture hCaptcha challenge data from the page."""
         try:
-            # Find hCaptcha iframe
-            iframe_element = page.locator('iframe[src*="hcaptcha.com"]').first
-            if not await iframe_element.is_visible():
+            # Find hCaptcha iframe using multiple strategies
+            iframe_element = None
+
+            # Strategy 1: Direct src pattern
+            try:
+                iframe_element = page.locator('iframe[src*="hcaptcha.com"]').first
+                if not await iframe_element.is_visible():
+                    iframe_element = None
+            except:
+                iframe_element = None
+
+            # Strategy 2: Check all iframes for hCaptcha content
+            if not iframe_element:
+                all_iframes = await page.locator('iframe').all()
+                for iframe in all_iframes:
+                    try:
+                        src = await iframe.get_attribute('src') or ""
+                        if 'hcaptcha' in src.lower() and await iframe.is_visible():
+                            iframe_element = iframe
+                            break
+                    except:
+                        continue
+
+            if not iframe_element:
+                logger.warning("No suitable hCaptcha iframe found")
                 return None
 
             # Get iframe content
             frame = await iframe_element.content_frame()
             if not frame:
+                logger.warning("Could not access iframe content")
                 return None
 
             # Extract challenge type and prompt
@@ -129,7 +200,7 @@ class ChallengeCapture:
         logger.info(f"Saved challenge to: {filepath}")
         return str(filepath)
 
-    async def capture_from_url(self, url: str, wait_time: int = 5000, trigger_login: bool = False) -> Optional[str]:
+    async def capture_from_url(self, url: str, wait_time: int = 5000) -> Optional[str]:
         """Capture hCaptcha challenge from a specific URL."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=False)
@@ -145,10 +216,6 @@ class ChallengeCapture:
 
                 # Wait for page to load
                 await page.wait_for_timeout(wait_time)
-
-                # If login triggering is enabled, try to perform login actions
-                if trigger_login:
-                    await self._trigger_login_flow(page)
 
                 # Check for hCaptcha
                 if await self.wait_for_hcaptcha(page):
@@ -169,118 +236,13 @@ class ChallengeCapture:
 
         return None
 
-    async def _trigger_login_flow(self, page):
-        """Attempt to trigger hCaptcha by performing login actions."""
-        try:
-            logger.info("Attempting to trigger hCaptcha via login flow...")
-
-            # Common login form selectors
-            login_selectors = [
-                'input[type="email"]',
-                'input[name="email"]',
-                'input[name="username"]',
-                'input[type="text"]',
-                '#email',
-                '#username'
-            ]
-
-            password_selectors = [
-                'input[type="password"]',
-                'input[name="password"]',
-                '#password'
-            ]
-
-            submit_selectors = [
-                'button[type="submit"]',
-                'input[type="submit"]',
-                'button:has-text("Login")',
-                'button:has-text("Sign In")',
-                'button:has-text("Log In")',
-                '.login-btn',
-                '#login-button'
-            ]
-
-            # Try to find and fill email/username field
-            email_field = None
-            for selector in login_selectors:
-                try:
-                    field = page.locator(selector).first
-                    if await field.is_visible():
-                        email_field = field
-                        logger.info(f"Found email field: {selector}")
-                        break
-                except:
-                    continue
-
-            # Try to find password field
-            password_field = None
-            for selector in password_selectors:
-                try:
-                    field = page.locator(selector).first
-                    if await field.is_visible():
-                        password_field = field
-                        logger.info(f"Found password field: {selector}")
-                        break
-                except:
-                    continue
-
-            # Try to find submit button
-            submit_button = None
-            for selector in submit_selectors:
-                try:
-                    button = page.locator(selector).first
-                    if await button.is_visible():
-                        submit_button = button
-                        logger.info(f"Found submit button: {selector}")
-                        break
-                except:
-                    continue
-
-            # If we found the form elements, fill them with dummy data and submit
-            if email_field and password_field and submit_button:
-                logger.info("Filling login form with dummy credentials...")
-
-                # Fill with dummy credentials that will likely fail but trigger hCaptcha
-                await email_field.fill("test@example.com")
-                await password_field.fill("dummy_password_123")
-
-                # Click submit to trigger hCaptcha
-                await submit_button.click()
-                logger.info("Clicked submit button - waiting for hCaptcha...")
-
-                # Wait a bit for hCaptcha to appear
-                await page.wait_for_timeout(3000)
-
-            else:
-                logger.warning("Could not find complete login form - trying alternative triggers")
-
-                # Alternative: look for any buttons that might trigger hCaptcha
-                alt_buttons = page.locator('button, input[type="submit"], a[href*="login"], a[href*="signin"]')
-                count = await alt_buttons.count()
-
-                for i in range(min(count, 3)):  # Try first 3 buttons
-                    try:
-                        button = alt_buttons.nth(i)
-                        if await button.is_visible():
-                            button_text = await button.text_content()
-                            logger.info(f"Trying to click button: '{button_text[:30]}...'")
-                            await button.click()
-                            await page.wait_for_timeout(2000)
-                            break
-                    except Exception as e:
-                        logger.debug(f"Button click failed: {e}")
-                        continue
-
-        except Exception as e:
-            logger.warning(f"Login flow triggering failed: {e}")
-
-    async def capture_multiple_challenges(self, urls: List[str], delay_between: int = 3000, trigger_login: bool = False) -> List[str]:
+    async def capture_multiple_challenges(self, urls: List[str], delay_between: int = 3000) -> List[str]:
         """Capture challenges from multiple URLs."""
         captured_files = []
 
         for i, url in enumerate(urls):
             logger.info(f"Processing URL {i+1}/{len(urls)}: {url}")
-            filepath = await self.capture_from_url(url, trigger_login=trigger_login)
+            filepath = await self.capture_from_url(url)
             if filepath:
                 captured_files.append(filepath)
 
@@ -299,7 +261,6 @@ async def main():
     parser.add_argument("--urls-file", help="File containing URLs (one per line)")
     parser.add_argument("--output-dir", default="captured_challenges", help="Output directory")
     parser.add_argument("--wait-time", type=int, default=5000, help="Wait time after page load (ms)")
-    parser.add_argument("--trigger-login", action="store_true", help="Attempt to trigger hCaptcha by performing login actions")
 
     args = parser.parse_args()
 
@@ -307,7 +268,7 @@ async def main():
 
     if args.url:
         logger.info("Starting single URL capture...")
-        result = await capture.capture_from_url(args.url, args.wait_time, args.trigger_login)
+        result = await capture.capture_from_url(args.url, args.wait_time)
         if result:
             logger.info(f"✅ Challenge captured: {result}")
         else:
@@ -319,7 +280,7 @@ async def main():
             with open(args.urls_file, 'r') as f:
                 urls = [line.strip() for line in f if line.strip()]
 
-            results = await capture.capture_multiple_challenges(urls, trigger_login=args.trigger_login)
+            results = await capture.capture_multiple_challenges(urls)
             logger.info(f"✅ Captured {len(results)} challenges")
 
         except FileNotFoundError:
