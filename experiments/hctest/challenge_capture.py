@@ -210,6 +210,12 @@ class ChallengeCapture:
 
                 # Check for hCaptcha
                 if await self.wait_for_hcaptcha(page):
+                    # If we found CAPTCHA iframes, try to trigger the full challenge by clicking checkbox
+                    await self.trigger_checkbox_challenge(page)
+
+                    # Wait a bit for the full challenge to load
+                    await page.wait_for_timeout(3000)
+
                     challenge_data = await self.capture_challenge_data(page)
                     if challenge_data:
                         filepath = await self.save_challenge(challenge_data)
@@ -331,6 +337,29 @@ class ChallengeCapture:
 
         except Exception as e:
             logger.warning(f"Login flow triggering failed: {e}")
+
+    async def trigger_checkbox_challenge(self, page: Page):
+        """Click the hCaptcha checkbox to trigger the full challenge."""
+        try:
+            # Find the CAPTCHA frame
+            captcha_frame = await self.detect_captcha_in_frame(page, 0)
+            if not captcha_frame:
+                logger.warning("No CAPTCHA frame found for checkbox triggering")
+                return
+
+            # Click the checkbox using frame locator (same as production integration)
+            frame_locator = captcha_frame.frame_locator("iframe[title='Widget containing checkbox for hCaptcha security challenge']")
+            checkbox = frame_locator.locator("#checkbox")
+
+            # Check if checkbox is visible and clickable
+            if await checkbox.is_visible():
+                await checkbox.click()
+                logger.info("Clicked hCaptcha checkbox to trigger full challenge")
+            else:
+                logger.warning("hCaptcha checkbox not visible or clickable")
+
+        except Exception as e:
+            logger.warning(f"Failed to trigger checkbox challenge: {e}")
 
     async def capture_multiple_challenges(self, urls: List[str], delay_between: int = 3000, trigger_login: bool = False) -> List[str]:
         """Capture challenges from multiple URLs."""
