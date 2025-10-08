@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<!-- saved from url=(0034)https://24captcha.online/api-docs/ -->
+<html lang="en"><script async="" src="./Api_files/tag.js.download"></script><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/content/location/location.js" id="eppiocemhmnlbhjplcgkofciiegomcon"></script><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/libs/extend-native-history-api.js"></script><script src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/libs/requests.js"></script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>
+    Api
+</title>
+    
+    
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+
+    
+    <meta content="" name="description">
+    <meta content="" name="keywords">
+
+
+
+    
+    <!-- Favicons -->
+    <link href="https://24captcha.online/static/images/favicon.ico" rel="shortcut icon">
+    <link href="https://24captcha.online/static/images/favicon.png" rel="icon">
+    <link href="https://24captcha.online/static/images/apple-touch-icon.png" rel="apple-touch-icon">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <!-- Template Main CSS File -->
+    <link rel="stylesheet" href="./Api_files/main.css">
+    
+
+    
+    <link rel="stylesheet" href="./Api_files/bootstrap.min.css">
+    <link rel="stylesheet" href="./Api_files/api.css">
+
+
+    
+    
+    
+    
+<script bis_use="true" type="text/javascript" charset="utf-8" data-bis-config="[&quot;facebook.com/&quot;,&quot;twitter.com/&quot;,&quot;youtube-nocookie.com/embed/&quot;,&quot;//vk.com/&quot;,&quot;//www.vk.com/&quot;,&quot;linkedin.com/&quot;,&quot;//www.linkedin.com/&quot;,&quot;//instagram.com/&quot;,&quot;//www.instagram.com/&quot;,&quot;//www.google.com/recaptcha/api2/&quot;,&quot;//hangouts.google.com/webchat/&quot;,&quot;//www.google.com/calendar/&quot;,&quot;//www.google.com/maps/embed&quot;,&quot;spotify.com/&quot;,&quot;soundcloud.com/&quot;,&quot;//player.vimeo.com/&quot;,&quot;//disqus.com/&quot;,&quot;//tgwidget.com/&quot;,&quot;//js.driftt.com/&quot;,&quot;friends2follow.com&quot;,&quot;/widget&quot;,&quot;login&quot;,&quot;//video.bigmir.net/&quot;,&quot;blogger.com&quot;,&quot;//smartlock.google.com/&quot;,&quot;//keep.google.com/&quot;,&quot;/web.tolstoycomments.com/&quot;,&quot;moz-extension://&quot;,&quot;chrome-extension://&quot;,&quot;/auth/&quot;,&quot;//analytics.google.com/&quot;,&quot;adclarity.com&quot;,&quot;paddle.com/checkout&quot;,&quot;hcaptcha.com&quot;,&quot;recaptcha.net&quot;,&quot;2captcha.com&quot;,&quot;accounts.google.com&quot;,&quot;www.google.com/shopping/customerreviews&quot;,&quot;buy.tinypass.com&quot;,&quot;gstatic.com&quot;,&quot;secureir.ebaystatic.com&quot;,&quot;docs.google.com&quot;,&quot;contacts.google.com&quot;,&quot;github.com&quot;,&quot;mail.google.com&quot;,&quot;chat.google.com&quot;,&quot;audio.xpleer.com&quot;,&quot;keepa.com&quot;,&quot;static.xx.fbcdn.net&quot;,&quot;sas.selleramp.com&quot;,&quot;1plus1.video&quot;,&quot;console.googletagservices.com&quot;,&quot;//lnkd.demdex.net/&quot;,&quot;//radar.cedexis.com/&quot;,&quot;//li.protechts.net/&quot;,&quot;challenges.cloudflare.com/&quot;,&quot;ogs.google.com&quot;]" src="chrome-extension://eppiocemhmnlbhjplcgkofciiegomcon/executors/traffic.js"></script></head>
+<body class="page" __processed_6e0aeffe-43d1-4d07-a346-1cabb97aa90e__="true" bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJlbmFibGVkIiwiRkFDRUJPT0siOiJlbmFibGVkIiwiVFdJVFRFUiI6ImVuYWJsZWQiLCJSRURESVQiOiJlbmFibGVkIiwiUElOVEVSRVNUIjoiZW5hYmxlZCIsIklOU1RBR1JBTSI6ImVuYWJsZWQiLCJUSUtUT0siOiJkaXNhYmxlZCIsIkxJTktFRElOIjoiZW5hYmxlZCIsIkNPTkZJRyI6ImRpc2FibGVkIn0sInZlcnNpb24iOiIyLjAuMjYiLCJzY29yZSI6MjAwMjYwfV0=">
+    
+    
+    <header class="header">
+    <div class="container" bis_skin_checked="1">
+    <div class="header__left" bis_skin_checked="1">
+    <div class="header__logo" bis_skin_checked="1">
+        <a href="https://24captcha.online/">
+            <img class="main-logo" src="./Api_files/24captcha-logo.svg" width="250" alt="24captcha logo">
+        </a>
+    </div>
+    <div class="header__contacts contacts" bis_skin_checked="1">
+      <ul class="contacts__list">
+        <li>
+          <a class="contacts__link" href="mailto:info@24captcha.online">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+              <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"></path>
+            </svg>
+            <span>info@24captcha.online</span>
+          </a>
+        </li>
+        <li>
+          <a class="contacts__link" href="https://t.me/captcha_24_online_1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+              <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.287 5.906c-.778.324-2.334.994-4.666 2.01-.378.15-.577.298-.595.442-.03.243.275.339.69.47l.175.055c.408.133.958.288 1.243.294.26.006.549-.1.868-.32 2.179-1.471 3.304-2.214 3.374-2.23.05-.012.12-.026.166.016.047.041.042.12.037.141-.03.129-1.227 1.241-1.846 1.817-.193.18-.33.307-.358.336a8.154 8.154 0 0 1-.188.186c-.38.366-.664.64.015 1.088.327.216.589.393.85.571.284.194.568.387.936.629.093.06.183.125.27.187.331.236.63.448.997.414.214-.02.435-.22.547-.82.265-1.417.786-4.486.906-5.751a1.426 1.426 0 0 0-.013-.315.337.337 0 0 0-.114-.217.526.526 0 0 0-.31-.093c-.3.005-.763.166-2.984 1.09z"></path>
+            </svg>
+            <span>Telegram</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+    </div>
+    <nav class="header__nav nav">
+    <ul class="nav__list">
+      <li>
+        <a class="nav__link" href="https://24captcha.online/api-docs/">
+          <img src="./Api_files/file-icon.svg" width="24" height="24" alt="API Document">
+          <span>API Documentation</span>
+        </a>
+      </li>
+      <li>
+        <a class="nav__link" href="https://24captcha.online/dashboard/">
+          <img src="./Api_files/user-icon.svg" width="24" height="24" alt="User Dashboard">
+          <span>User Dashboard</span>
+        </a>
+      </li>
+      <li class="lang">
+        <button class="btn-reset lang__btn" type="button" aria-expanded="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2 12c0 5.523 4.477 10 10 10s10-4.477 10-10S17.523 2 12 2 2 6.477 2 12Z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 2.05S16 6 16 12c0 6-3 9.95-3 9.95M11 21.95S8 18 8 12c0-6 3-9.95 3-9.95M2.63 15.5h18.74M2.63 8.5h18.74"></path>
+          </svg>
+          en
+        </button>
+        <ul class="lang__dropdown">
+          <li>
+            <a class="lang__link lang__link--en lang__link--current" href="https://24captcha.online/api-docs/#">English</a>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    </nav>
+    </div>
+    </header>
+    <main>
+    <div class="container" bis_skin_checked="1">
+      <section class="doc">
+        <div class="doc__content" bis_skin_checked="1">
+          <h1>#CAPTCHA</h1>
+          <p>#Captcha is a quite new type of captcha that is really similar to reCAPTCHA and looks like this:</p>
+          <img src="./Api_files/fcaptcha.png" width="400" height="106" alt="Captcha">
+          <p>First open developer's console in your browser and find the value of <code>data-sitekey</code> parameter in the source code of the page.</p>
+          <section id="section1" class="doc__section" data-menu-section="">
+            <h2>1. CREATE TASK</h2>
+            <div bis_skin_checked="1">
+              <h3>Request</h3>
+              <p><b>GET/POST</b> <code>https://24captcha.online/in.php</code></p>
+              <div class="doc__table" bis_skin_checked="1">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>name</th>
+                      <th>type</th>
+                      <th>required</th>
+                      <th>description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                        <td data-label="name">key</td>
+                        <td data-label="type">text</td>
+                        <td data-label="required">yes</td>
+                        <td data-label="description">
+                            <div bis_skin_checked="1">Client API key, can be found <a href="https://24captcha.online/dashboard/">here</a></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">sitekey</td>
+                        <td data-label="type">text</td>
+                        <td data-label="required">yes</td>
+                        <td data-label="description">Value of data-sitekey parameter you found on page</td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">pageurl</td>
+                        <td data-label="type">text</td>
+                        <td data-label="required">no</td>
+                        <td data-label="description">
+                          <div bis_skin_checked="1">Address of a target web page with captcha. If you didn't send <b>pageurl</b> worker will generate fake url.</div></td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">json</td>
+                        <td data-label="type">number <b>Default:</b> 0</td>
+                        <td data-label="required">no</td>
+                        <td data-label="description">0 - server will send the response as plain text, 1 - tells the server to send the response as JSON</td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">proxy</td>
+                        <td data-label="type">text</td>
+                        <td data-label="required">no</td>
+                        <td data-label="description">Format: login:password@123.123.123.123:3128</td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">proxytype</td>
+                        <td data-label="type">text</td>
+                        <td data-label="required">no</td>
+                        <td data-label="description">Type of your proxy: HTTPS, HTTP</td>
+                    </tr>
+                    <tr>
+                      <td data-label="name">rqdata</td>
+                      <td data-label="type">text</td>
+                      <td data-label="required">no</td>
+                      <td data-label="description">In most cases you see it as rqdata inside network requests.</td>
+                    </tr>
+                    <tr>
+                      <td data-label="name">invisible</td>
+                      <td data-label="type">bool <b>Default:</b> false</td>
+                      <td data-label="required">no</td>
+                      <td data-label="description">Use true for invisible version of captcha.</td>
+                    </tr>
+                    <tr>
+                      <td data-label="name">enterprise</td>
+                      <td data-label="type">bool <b>Default:</b> false</td>
+                      <td data-label="required">no</td>
+                      <td data-label="description">Use true for enterprise or discord captcha.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <h3>Request POST Example 1</h3><p>server will send the response as plain text</p>
+              <pre class="code-block"><code><span class="code-blue">POST</span> <span class="code-d-blue">/in.php</span> <span class="code-blue">HTTP/1.1</span>
+<span class="code-red">Host:</span> <span>24captcha.online</span>
+<span class="code-red">Content-Type:</span> <span>application/json</span>
+
+{
+      <span class="code-blue">"key":</span> <span class="code-d-blue">"YOUR_API_KEY",</span>
+      <span class="code-blue">"sitekey":</span> <span class="code-d-blue">"00000000-0000-0000-0000-000000000000",</span>
+      <span class="code-blue">"pageurl":</span> <span class="code-d-blue">"https://example.com/",</span>
+      <span class="code-blue">"json":</span> <span class="code-d-blue">0</span>
+}</code></pre>
+            </div>
+            <!-- Response TEXT -->
+            <div bis_skin_checked="1">
+              <h3>Response TEXT</h3>
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="responseSuccessTEXT" data-bs-toggle="tab" data-bs-target="#responseSuccessTabTEXT" type="button" role="tab" aria-controls="responseSuccessTabTEXT" aria-selected="true">Success</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseErrorTEXT" data-bs-toggle="tab" data-bs-target="#responseErrorTabTEXT" type="button" role="tab" aria-controls="responseErrorTabTEXT" aria-selected="false" tabindex="-1">Error</button>
+                </li>
+              </ul>
+              <div class="tab-content" bis_skin_checked="1">
+                <div class="tab-pane fade show active" id="responseSuccessTabTEXT" role="tabpanel" aria-labelledby="responseSuccessTEXT" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>OK|00000000-0000-0000-0000-000000000000</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseErrorTabTEXT" role="tabpanel" aria-labelledby="responseErrorTEXT" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>ERROR_KEY</code></pre>
+                </div>
+              </div>
+            </div>
+              <h3>Request POST Example 2</h3><p>server will send the response as JSON</p>
+              <pre class="code-block"><code><span class="code-blue">POST</span> <span class="code-d-blue">/in.php</span> <span class="code-blue">HTTP/1.1</span>
+<span class="code-red">Host:</span> <span>24captcha.online</span>
+<span class="code-red">Content-Type:</span> <span>application/json</span>
+
+{
+      <span class="code-blue">"key":</span> <span class="code-d-blue">"YOUR_API_KEY",</span>
+      <span class="code-blue">"sitekey":</span> <span class="code-d-blue">"00000000-0000-0000-0000-000000000000",</span>
+      <span class="code-blue">"pageurl":</span> <span class="code-d-blue">"https://example.com/",</span>
+      <span class="code-blue">"json":</span> <span class="code-d-blue">1</span>
+}</code></pre>
+            <!-- Response JSON -->
+            <div bis_skin_checked="1">
+              <h3>Response JSON</h3>
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="responseSuccessJSON" data-bs-toggle="tab" data-bs-target="#responseSuccessTabJSON" type="button" role="tab" aria-controls="responseSuccessTabJSON" aria-selected="true">Success</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseErrorJSON" data-bs-toggle="tab" data-bs-target="#responseErrorTabJSON" type="button" role="tab" aria-controls="responseErrorTabJSON" aria-selected="false" tabindex="-1">Error</button>
+                </li>
+              </ul>
+              <div class="tab-content" bis_skin_checked="1">
+                <div class="tab-pane fade show active" id="responseSuccessTabJSON" role="tabpanel" aria-labelledby="responseSuccess" tabindex="0" bis_skin_checked="1">
+                <pre class="code-block"><code>{
+      <span class="code-blue">"request":</span> <span class="code-d-blue">"00000000-0000-0000-0000-000000000000",</span>
+      <span class="code-blue">"status":</span> <span class="code-d-blue">1</span>
+}</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseErrorTabJSON" role="tabpanel" aria-labelledby="responseError" tabindex="0" bis_skin_checked="1">
+                <pre class="code-block"><code>{
+      <span class="code-blue">"error_text":</span> <span class="code-d-blue">"ERROR_TEXT",</span>
+      <span class="code-blue">"request":</span> <span class="code-d-blue">"ERROR_KEY",</span>
+      <span class="code-blue">"status":</span> <span class="code-d-blue">0</span>
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section id="section2" class="doc__section" data-menu-section="">
+            <h2>2. GET TASK RESULT</h2>
+            <div bis_skin_checked="1">
+              <h3>Request</h3>
+              <p><b>GET/POST</b> <code>https://24captcha.online/res.php</code></p>
+              <div class="doc__table" bis_skin_checked="1">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>name</th>
+                      <th>type</th>
+                      <th>required</th>
+                      <th>description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td data-label="name">key</td>
+                      <td data-label="type">text</td>
+                      <td data-label="required">yes</td>
+                      <td data-label="description">
+                        <div bis_skin_checked="1">Client API key, can be found <a href="https://24captcha.online/dashboard/">here</a></div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-label="name">action</td>
+                      <td data-label="type">text</td>
+                      <td data-label="required">yes</td>
+                      <td data-label="description">get - get the answer for your captcha</td>
+                    </tr>
+                    <tr>
+                      <td data-label="name">id</td>
+                      <td data-label="type">text</td>
+                      <td data-label="required">yes</td>
+                      <td data-label="description">ID of captcha returned by in.php.</td>
+                    </tr>
+                    <tr>
+                        <td data-label="name">json</td>
+                        <td data-label="type">number <b>Default:</b> 0</td>
+                        <td data-label="required">no</td>
+                        <td data-label="description">0 - server will send the response as plain text, 1 - tells the server to send the response as JSON</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <h3>Request POST Example 1</h3><p>server will send the response as plain text</p>
+              <pre class="code-block"><code><span class="code-blue">POST</span> <span class="code-d-blue">/res.php</span> <span class="code-blue">HTTP/1.1</span>
+<span class="code-red">Host:</span> <span>24captcha.online</span>
+<span class="code-red">Content-Type:</span> <span>application/json</span>
+
+{
+      <span class="code-blue">"key":</span> <span class="code-d-blue">"YOUR_API_KEY",</span>
+      <span class="code-blue">"id":</span> <span class="code-d-blue">"00000000-0000-0000-0000-000000000000",</span>
+      <span class="code-blue">"action":</span> <span class="code-d-blue">"get",</span>
+      <span class="code-blue">"json":</span> <span class="code-d-blue">0</span>
+}</code></pre>
+            </div>
+            <!-- Response TEXT -->
+            <div bis_skin_checked="1">
+              <h3>Response TEXT</h3>
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="responseSuccess2TEXT" data-bs-toggle="tab" data-bs-target="#responseSuccessTab2TEXT" type="button" role="tab" aria-controls="responseSuccessTab2TEXT" aria-selected="true">Success</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseProcessing2TEXT" data-bs-toggle="tab" data-bs-target="#responseProcessingTab2TEXT" type="button" role="tab" aria-controls="responseProcessingTab2TEXT" aria-selected="false" tabindex="-1">Processing</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseError2TEXT" data-bs-toggle="tab" data-bs-target="#responseErrorTab2TEXT" type="button" role="tab" aria-controls="responseErrorTab2TEXT" aria-selected="false" tabindex="-1">Error</button>
+                </li>
+              </ul>
+              <div class="tab-content" bis_skin_checked="1">
+                <div class="tab-pane fade active show" id="responseSuccessTab2TEXT" role="tabpanel" aria-labelledby="responseSuccess2TEXT" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>OK|3AHJ_VuvYIBNBW5yyv0zRYJ75VkOK.....</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseProcessingTab2TEXT" role="tabpanel" aria-labelledby="responseProcessing2TEXT" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>CAPCHA_NOT_READY</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseErrorTab2TEXT" role="tabpanel" aria-labelledby="responseError2TEXT" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>ERROR_CAPTCHA_UNSOLVABLE</code></pre>
+                </div>
+              </div>
+            </div>
+              <h3>Request POST Example 2</h3><p>server will send the response as JSON</p>
+              <pre class="code-block"><code><span class="code-blue">POST</span> <span class="code-d-blue">/res.php</span> <span class="code-blue">HTTP/1.1</span>
+<span class="code-red">Host:</span> <span>24captcha.online</span>
+<span class="code-red">Content-Type:</span> <span>application/json</span>
+
+{
+      <span class="code-blue">"key":</span> <span class="code-d-blue">"YOUR_API_KEY",</span>
+      <span class="code-blue">"id":</span> <span class="code-d-blue">"00000000-0000-0000-0000-000000000000",</span>
+      <span class="code-blue">"action":</span> <span class="code-d-blue">"get",</span>
+      <span class="code-blue">"json":</span> <span class="code-d-blue">1</span>
+}</code></pre>
+            <!-- Response JSON -->
+            <div bis_skin_checked="1">
+              <h3>Response JSON</h3>
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="responseSuccess2JSON" data-bs-toggle="tab" data-bs-target="#responseSuccessTab2JSON" type="button" role="tab" aria-controls="responseSuccessTab2JSON" aria-selected="true">Success</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseProcessing2JSON" data-bs-toggle="tab" data-bs-target="#responseProcessingTab2JSON" type="button" role="tab" aria-controls="responseProcessingTab2JSON" aria-selected="false" tabindex="-1">Processing</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="responseError2JSON" data-bs-toggle="tab" data-bs-target="#responseErrorTab2JSON" type="button" role="tab" aria-controls="responseErrorTab2JSON" aria-selected="false" tabindex="-1">Error</button>
+                </li>
+              </ul>
+              <div class="tab-content" bis_skin_checked="1">
+                <div class="tab-pane fade show active" id="responseSuccessTab2JSON" role="tabpanel" aria-labelledby="responseSuccess2JSON" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>{
+      <span class="code-blue">"request":</span> <span class="code-d-blue">"3AHJ_VuvYIBNBW5yyv0zRYJ75VkOK.....",</span>
+      <span class="code-blue">"status":</span> <span class="code-d-blue">1</span>
+}</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseProcessingTab2JSON" role="tabpanel" aria-labelledby="responseProcessing2JSON" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>{
+      <span class="code-blue">"request":</span> <span class="code-d-blue">"CAPCHA_NOT_READY"</span>
+      <span class="code-blue">"status":</span> <span class="code-d-blue">0</span>
+}</code></pre>
+                </div>
+                <div class="tab-pane fade" id="responseErrorTab2JSON" role="tabpanel" aria-labelledby="responseError2JSON" tabindex="0" bis_skin_checked="1">
+                  <pre class="code-block"><code>{
+      <span class="code-blue">"request":</span> <span class="code-d-blue">"ERROR_CAPTCHA_UNSOLVABLE",</span>
+      <span class="code-blue">"status":</span> <span class="code-d-blue">0</span>
+}</code></pre>
+                </div>
+              </div>
+            </div>
+            <ul class="doc__list">
+              <li><code>status = 1</code> : Solved successfully, read result in <code>request</code></li>
+              <li><code>status = 0</code> and <code>request = CAPCHA_NOT_READY</code> : The task is not ready yet, make 5 seconds timeout and repeat your request.</li>
+              <li><code>status = 0</code> : error identifier. Error code and short description transferred in errorCode and errorDescription properties</li>
+            </ul>
+          </section>
+          <section id="section3" class="doc__section" data-menu-section="">
+            <h2>List of in.php errors</h2>
+            <div class="doc__table" bis_skin_checked="1">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Error code</th>
+                    <th>Description</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Error code">ERROR_WRONG_USER_KEY</td>
+                    <td data-label="Description">You've provided key parameter value in incorrect format, it should contain 32 symbols.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Stop sending requests. Check <a href="https://24captcha.online/dashboard/"> your API key</a>.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_KEY_DOES_NOT_EXIST</td>
+                    <td data-label="Description">The key you've provided does not exist.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Stop sending requests. Check <a href="https://24captcha.online/dashboard/">your API key</a>.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_ZERO_BALANCE</td>
+                    <td data-label="Description">Account has zero or negative balance.</td>
+                    <td data-label="Action">Stop sending requests and make deposit.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_PAGEURL</td>
+                    <td data-label="Description">
+                      <div bis_skin_checked="1">Not valid <code>pageurl</code>.</div>
+                    </td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Stop sending requests and change your code to provide valid <code>pageurl</code> parameter. <a href="https://24captcha.online/api-docs/#">More info</a>.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">IP_BANNED</td>
+                    <td data-label="Description">Your IP address is banned due to many frequent attempts to access the server using wrong authorization keys.</td>
+                    <td data-label="Action">Ban will be automatically lifted after 5 minutes.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_PROXY_FORMAT</td>
+                    <td data-label="Description">
+                      <div bis_skin_checked="1">	You use incorrect proxy format in your request to <code>in.php</code></div>
+                    </td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Use proper format as described.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_BAD_PARAMETERS</td>
+                    <td data-label="Description">
+                      <div bis_skin_checked="1">The error code is returned if some required parameters are missing in your request or the values have incorrect format.</div>
+                    </td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Check that your request contains all the required parameters and the values are in proper format.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_BAD_PROXY</td>
+                    <td data-label="Description">You can get this error code when sending a captcha via proxy server which is marked as BAD by our API.</td>
+                    <td data-label="Action">Use a different proxy server in your requests.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_SITEKEY</td>
+                    <td data-label="Description">You can get this error code when sending captcha. That means that sitekey value provided in your request is incorrect: it's blank or malformed.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Check your code that gets the <code>sitekey</code> and makes requests to our API.</div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section id="section4" class="doc__section" data-menu-section="">
+            <h2>List of res.php errors</h2>
+            <div class="doc__table" bis_skin_checked="1">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Error code</th>
+                    <th>Description</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Error code">CAPCHA_NOT_READY</td>
+                    <td data-label="Description">Your captcha is not solved yet.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1"><b>Make 5 seconds</b> timeout and repeat your request.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_CAPTCHA_UNSOLVABLE</td>
+                    <td data-label="Description">Captcha could not be solved, or we didn't get an answer within 90 seconds. We will not charge you for that request.</td>
+                    <td data-label="Action">You can retry to send your captcha.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_WRONG_USER_KEY</td>
+                    <td data-label="Description">You've provided key parameter value in incorrect format, it should contain 32 symbols.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Stop sending requests. Check <a href="https://24captcha.online/dashboard/"> your API key</a>.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_KEY_DOES_NOT_EXIST</td>
+                    <td data-label="Description">Account authorization key not found in the system. Make sure you copied it correctly without spaces and tabulation signs.</td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Stop sending requests. Check <a href="https://24captcha.online/dashboard/"> your API key</a>.</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_WRONG_CAPTCHA_ID</td>
+                    <td data-label="Description">Captcha key not found in the system or was automatically removed after 15 minutes.</td>
+                    <td data-label="Action">Check the ID of captcha or your code that gets the ID.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Error code">ERROR_EMPTY_ACTION</td>
+                    <td data-label="Description">
+                      <div bis_skin_checked="1">Action parameter is missing or no value is provided for <code>action</code> parameter.</div>
+                    </td>
+                    <td data-label="Action">
+                      <div bis_skin_checked="1">Check your request parameters and add the necessary value.</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+        <aside class="doc__menu">
+          <ul class="doc__menu__list">
+            <li>
+              <a class="doc__menu-link" href="https://24captcha.online/api-docs/#section1">CREATE TASK</a>
+            </li>
+            <li>
+              <a class="doc__menu-link" href="https://24captcha.online/api-docs/#section2">GET TASK RESULT</a>
+            </li>
+            <li>
+              <a class="doc__menu-link" href="https://24captcha.online/api-docs/#section3">List of in.php errors</a>
+            </li>
+            <li>
+              <a class="doc__menu-link" href="https://24captcha.online/api-docs/#section4">List of res.php errors</a>
+            </li>
+          </ul>
+        </aside>
+      </section>
+    </div>
+</main>
+    <footer class="footer">
+    <div class="container" bis_skin_checked="1">
+    <div class="footer__contacts contacts" bis_skin_checked="1">
+    <ul class="contacts__list">
+      <li>
+        <a class="contacts__link" href="mailto:info@24captcha.online">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"></path>
+          </svg>
+          <span>info@24captcha.online</span>
+        </a>
+      </li>
+      <li>
+        <a class="contacts__link" href="https://t.me/captcha_24_online">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.287 5.906c-.778.324-2.334.994-4.666 2.01-.378.15-.577.298-.595.442-.03.243.275.339.69.47l.175.055c.408.133.958.288 1.243.294.26.006.549-.1.868-.32 2.179-1.471 3.304-2.214 3.374-2.23.05-.012.12-.026.166.016.047.041.042.12.037.141-.03.129-1.227 1.241-1.846 1.817-.193.18-.33.307-.358.336a8.154 8.154 0 0 1-.188.186c-.38.366-.664.64.015 1.088.327.216.589.393.85.571.284.194.568.387.936.629.093.06.183.125.27.187.331.236.63.448.997.414.214-.02.435-.22.547-.82.265-1.417.786-4.486.906-5.751a1.426 1.426 0 0 0-.013-.315.337.337 0 0 0-.114-.217.526.526 0 0 0-.31-.093c-.3.005-.763.166-2.984 1.09z"></path>
+          </svg>
+          <span>Telegram</span>
+        </a>
+      </li>
+    </ul>
+    </div>
+    <small class="footer__copyright">© Copyright 24Captcha. All Rights Reserved</small>
+    </div>
+    </footer>
+
+    
+    <script src="./Api_files/lang-dropdown.js.download"></script>
+    
+    
+    <script src="./Api_files/bootstrap.bundle.min.js.download"></script>
+    <script src="./Api_files/page-navigation.js.download"></script>
+
+
+    <!-- Yandex.Metrika counter -->
+    
+    <script type="text/javascript">
+       (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+       m[i].l=1*new Date();
+       for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+       k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+       (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+       ym(92901412, "init", {
+            clickmap:true,
+            trackLinks:true,
+            accurateTrackBounce:true,
+            webvisor:true
+       });
+    </script>
+    <noscript><div><img src="https://mc.yandex.ru/watch/92901412" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    
+    <!-- /Yandex.Metrika counter -->
+<script defer="" src="./Api_files/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;a61f24d4d4044246be40592286e64cae&quot;,&quot;r&quot;:1,&quot;server_timing&quot;:{&quot;name&quot;:{&quot;cfCacheStatus&quot;:true,&quot;cfEdge&quot;:true,&quot;cfExtPri&quot;:true,&quot;cfL4&quot;:true,&quot;cfOrigin&quot;:true,&quot;cfSpeedBrain&quot;:true},&quot;location_startswith&quot;:null}}" crossorigin="anonymous"></script>
+
+</body></html>

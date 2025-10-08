@@ -1,0 +1,22 @@
+const pageNavSections = document.querySelectorAll('[data-menu-section]');
+const pageNavLinks = document.querySelectorAll('.doc__menu__list a');
+
+const changeActivePageNavLink = () => {
+    let current = "";
+
+    pageNavSections.forEach((section) => {
+        const sectionTop = section.offsetTop;
+        if (scrollY >= sectionTop - 40) {
+            current = section.getAttribute('id');
+        }
+    });
+
+    pageNavLinks.forEach((link) => {
+        link.classList.remove('doc__menu-link--active');
+        if (link.getAttribute('href').slice(1) === current) {
+            link.classList.add('doc__menu-link--active');
+        }
+    });
+};
+
+window.addEventListener("scroll", changeActivePageNavLink);

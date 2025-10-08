@@ -1,0 +1,97 @@
+{
+  "sdk_http_response": {
+    "headers": {
+      "content-type": "application/json; charset=UTF-8",
+      "vary": "Origin, X-Origin, Referer",
+      "content-encoding": "gzip",
+      "date": "Fri, 03 Oct 2025 15:23:54 GMT",
+      "server": "scaffolding on HTTPServer2",
+      "x-xss-protection": "0",
+      "x-frame-options": "SAMEORIGIN",
+      "x-content-type-options": "nosniff",
+      "server-timing": "gfet4t7; dur=9922",
+      "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+      "transfer-encoding": "chunked"
+    },
+    "body": null
+  },
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "video_metadata": null,
+            "thought": null,
+            "inline_data": null,
+            "file_data": null,
+            "thought_signature": null,
+            "code_execution_result": null,
+            "executable_code": null,
+            "function_call": null,
+            "function_response": null,
+            "text": "{\n  \"challenge_prompt\": \"Find items that belong in household spaces\",\n  \"points\": [\n    {\n      \"x\": 691,\n      \"y\": 205\n    },\n    {\n      \"x\": 798,\n      \"y\": 205\n    },\n    {\n      \"x\": 910,\n      \"y\": 205\n    },\n    {\n      \"x\": 750,\n      \"y\": 376\n    }\n  ]\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "citation_metadata": null,
+      "finish_message": null,
+      "token_count": null,
+      "finish_reason": "STOP",
+      "url_context_metadata": null,
+      "avg_logprobs": null,
+      "grounding_metadata": null,
+      "index": 0,
+      "logprobs_result": null,
+      "safety_ratings": null
+    }
+  ],
+  "create_time": null,
+  "model_version": "gemini-2.5-flash",
+  "prompt_feedback": null,
+  "response_id": "iurfaJyXL5-TxN8PgJRy",
+  "usage_metadata": {
+    "cache_tokens_details": null,
+    "cached_content_token_count": null,
+    "candidates_token_count": 128,
+    "candidates_tokens_details": null,
+    "prompt_token_count": 844,
+    "prompt_tokens_details": [
+      {
+        "modality": "TEXT",
+        "token_count": 328
+      },
+      {
+        "modality": "IMAGE",
+        "token_count": 516
+      }
+    ],
+    "thoughts_token_count": 1081,
+    "tool_use_prompt_token_count": null,
+    "tool_use_prompt_tokens_details": null,
+    "total_token_count": 2053,
+    "traffic_type": null
+  },
+  "automatic_function_calling_history": [],
+  "parsed": {
+    "challenge_prompt": "Find items that belong in household spaces",
+    "points": [
+      {
+        "x": 691,
+        "y": 205
+      },
+      {
+        "x": 798,
+        "y": 205
+      },
+      {
+        "x": 910,
+        "y": 205
+      },
+      {
+        "x": 750,
+        "y": 376
+      }
+    ]
+  }
+}

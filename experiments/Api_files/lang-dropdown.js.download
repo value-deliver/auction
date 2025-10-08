@@ -1,0 +1,25 @@
+const langDropdownToggle = document.querySelector('.lang__btn');
+const langDropdown = document.querySelector('.lang__dropdown');
+
+function showHideLangDropdow() {
+  langDropdownToggle.getAttribute('aria-expanded') === 'false'
+    ? langDropdownToggle.setAttribute('aria-expanded', 'true')
+    : langDropdownToggle.setAttribute('aria-expanded', 'false');
+
+    langDropdown.classList.toggle('lang__dropdown--show');
+}
+
+langDropdownToggle.addEventListener('click', (evt) => {
+  evt.stopPropagation();
+  showHideLangDropdow();
+});
+
+document.addEventListener('click', (evt) => {
+  let target = evt.target;
+  let itsLangDropdown = target === langDropdown || langDropdown.contains(target);
+
+  if (!itsLangDropdown && langDropdown.classList.contains('lang__dropdown--show')) {
+    langDropdownToggle.setAttribute('aria-expanded', 'false');
+    langDropdown.classList.remove('lang__dropdown--show');
+  }
+});
