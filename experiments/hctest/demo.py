@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from solvecaptcha import Solvecaptcha
 
 from production_integration import WebsiteAutomationBot
 
@@ -165,6 +166,31 @@ async def main():
                             await auction_button.click()
                             logger.info("Clicked the first Join Auction button")
                             await page.wait_for_timeout(5000)  # Wait for auction to load
+
+                            # Solve reCaptcha if present
+                            logger.info("Checking for reCaptcha after joining auction")
+                            sitekey = await page.evaluate('''
+                                const recaptcha = document.querySelector('.g-recaptcha');
+                                return recaptcha ? recaptcha.getAttribute('data-sitekey') : null;
+                            ''')
+                            if sitekey:
+                                logger.info(f"reCaptcha found with sitekey: {sitekey}")
+                                api_key = os.getenv("SOLVECAPTCHA_API_KEY")
+                                if api_key:
+                                    solver = Solvecaptcha(api_key)
+                                    url = page.url
+                                    try:
+                                        result = solver.recaptcha(sitekey=sitekey, url=url)
+                                        token = result['code']
+                                        logger.info("reCaptcha token obtained")
+                                        await page.evaluate(f'document.querySelector(\'textarea[name="g-recaptcha-response"]\').value = "{token}";')
+                                        logger.info("reCaptcha token injected")
+                                    except Exception as e:
+                                        logger.error(f"reCaptcha solving failed: {e}")
+                                else:
+                                    logger.error("SOLVECAPTCHA_API_KEY not found")
+                            else:
+                                logger.info("No reCaptcha found")
                         else:
                             logger.warning("No Join Auction buttons found or not visible")
 
