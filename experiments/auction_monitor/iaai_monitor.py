@@ -949,8 +949,8 @@ class IAAIAuctionMonitor:
         return True
 
     async def _highlight_bid_button_manual_impl(self):
-        """Highlight the bid button"""
-        print("🔵 Starting manual IAAI bid button highlight...")
+        """Click the bid button"""
+        print("🔵 Starting manual IAAI bid button click...")
         try:
             button_selectors = [
                 'button[data-uname*="bid"]',
@@ -963,35 +963,19 @@ class IAAIAuctionMonitor:
                 try:
                     button = self.page.locator(selector).first
                     if await button.is_visible(timeout=1000):
-                        await button.evaluate("""
-                            (element) => {
-                                const originalStyles = {
-                                    backgroundColor: element.style.backgroundColor,
-                                    border: element.style.border,
-                                    color: element.style.color
-                                };
-
-                                element.style.setProperty('background-color', '#0066ff', 'important');
-                                element.style.setProperty('border', '3px solid #003399', 'important');
-                                element.style.setProperty('color', '#ffffff', 'important');
-
-                                setTimeout(() => {
-                                    element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
-                                    element.style.setProperty('border', originalStyles.border, 'important');
-                                    element.style.setProperty('color', originalStyles.color, 'important');
-                                }, 3000);
-                            }
-                        """)
-                        print("🔵 Manual IAAI bid button highlight applied")
+                        print(f"Found bid button with selector: {selector}")
+                        await button.click()
+                        print("🔵 Manual IAAI bid button clicked successfully")
                         return True
-                except:
+                except Exception as e:
+                    print(f"Failed to click bid button with selector {selector}: {e}")
                     continue
 
             print("❌ No IAAI bid button found")
             return False
 
         except Exception as e:
-            print(f"❌ Manual IAAI bid button highlighting failed: {e}")
+            print(f"❌ Manual IAAI bid button clicking failed: {e}")
             return False
 
     async def _highlight_plus_button_manual(self):
