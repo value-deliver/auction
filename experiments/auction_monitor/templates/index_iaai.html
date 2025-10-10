@@ -344,25 +344,25 @@
                 <div class="card-value" id="auction-id">Not monitoring</div>
             </div>
 
-            <div class="card lot-title" style="background: white; color: #333;">
+            <div class="card current-item" style="background: white; color: #333;">
                 <div class="card-title">Current Item</div>
                 <div class="card-value" id="current-item">N/A</div>
                 <div class="card-subtitle">Auction item description</div>
             </div>
 
-            <div class="card lot-number" style="background: white; color: #333;">
+            <div class="card stock-number" style="background: white; color: #333;">
                 <div class="card-title">Stock Number</div>
                 <div class="card-value" id="stock-number">N/A</div>
                 <div class="card-subtitle">IAAI stock ID</div>
             </div>
 
-            <div class="card bid-suggestion" style="background: white; color: #333;">
+            <div class="card asking-bid" style="background: white; color: #333;">
                 <div class="card-title">Asking Bid</div>
                 <div class="card-value" id="asking-bid">N/A</div>
                 <div class="card-subtitle">Next bid amount</div>
             </div>
 
-            <div class="card current-bidder">
+            <div class="card high-bidder-location" style="background: white; color: #333;">
                 <div class="card-title">High Bidder Location</div>
                 <div class="card-value" id="high-bidder-location">N/A</div>
                 <div class="card-subtitle">Winning bidder location</div>
@@ -409,7 +409,7 @@
 
             const statusElement = document.getElementById('auction-status');
             const statusCard = document.getElementById('status-card');
-            const status = data.status || 'unknown';
+            const status = data.bid_status || data.status || 'unknown';
             statusElement.textContent = status;
 
             // Update status card color based on status
@@ -530,7 +530,7 @@
                         stock_number: 'N/A',
                         asking_bid: 'N/A',
                         high_bidder_location: 'N/A',
-                        status: 'Not monitoring'
+                        bid_status: 'Not monitoring'
                     });
 
                     // Clear bid amount input field

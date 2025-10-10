@@ -386,18 +386,6 @@ class IAAIAuctionMonitor:
         self.is_monitoring = False
         print("IAAI auction monitoring stopped")
 
-        # Clean up automation bot (synchronous cleanup)
-        if hasattr(self, 'automation_bot'):
-            try:
-                # Run cleanup in a new event loop if needed
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(self.automation_bot.cleanup())
-                loop.close()
-            except:
-                pass  # Ignore cleanup errors
-
     async def _load_env(self):
         """Load environment variables from all available .env files"""
         env_paths = ['../.env', '../hctest/.env', '../../experiments/.env']
@@ -426,7 +414,7 @@ class IAAIAuctionMonitor:
                                     print(f"Mapped IAAI_USERNAME to USER_EMAIL: {value}")
                                 elif key == 'IAAI_PASSWORD':
                                     os.environ['PASSWORD'] = value
-                                    print(f"Mapped IAAI_PASSWORD to PASSWORD: {value}")
+                                    print(f"Mapped IAAI_PASSWORD to PASSWORD: {'*' * len(value)}")
                                 elif key == 'USER_EMAIL':
                                     print(f"Found USER_EMAIL: {value}")
                                 elif key == 'PASSWORD':
@@ -495,7 +483,7 @@ class IAAIAuctionMonitor:
         self.current_auction_data = auction_data
         self.last_update = datetime.now().isoformat()
 
-        print(f"Initial data: Item={auction_data['current_item']}, Status={auction_data['bid_status']}, Stock={auction_data['stock_number']}")
+        print(f"Initial data: Item={auction_data['current_item']}, Status={auction_data['bid_status']}")
 
         # Emit initial data via WebSocket
         if self.socketio:
@@ -560,8 +548,9 @@ class IAAIAuctionMonitor:
             'stock_number': 'N/A',
             'asking_bid': 'N/A',
             'high_bidder_location': 'N/A',
-            'bid_status': 'unknown',
-            'lane': 'N/A',
+            'bid_status': 'N/A',
+            'status': 'unknown',
+            'active_bidders': 0,
             'last_update': datetime.now().isoformat()
         }
 
@@ -603,7 +592,12 @@ class IAAIAuctionMonitor:
                 try:
                     stock_elem = self.page.locator(selector).first
                     if await stock_elem.is_visible(timeout=1000):
-                        data['stock_number'] = await stock_elem.text_content()
+                        stock_text = await stock_elem.text_content()
+                        # Extract just the number
+                        import re
+                        match = re.search(r'(\d+)', stock_text)
+                        if match:
+                            data['stock_number'] = match.group(1)
                         break
                 except:
                     continue
@@ -657,16 +651,28 @@ class IAAIAuctionMonitor:
             print(f"Error extracting data from page: {e}")
 
     async def _setup_mutation_observer(self):
-        """Set up MutationObserver for real-time DOM changes"""
+        """Set up MutationObserver for real-time DOM changes, specifically bid changes"""
         try:
-            print('_setup_mutation_observer: Setting up IAAI observer...')
+            print('_setup_mutation_observer: Checking auction frame...')
+            if not self.page:
+                print('_setup_mutation_observer: No page found, skipping observer setup')
+                return
 
-            # JavaScript code to set up MutationObserver
+            # Wait for auction content to load
+            print('Waiting for auction content to load...')
+            try:
+                await self.page.locator('#auctionEvents').wait_for(timeout=30000)
+                print('Auction content loaded (#auctionEvents found)')
+            except Exception as e:
+                print(f'Auction content not loaded within 30 seconds: {e}')
+                print('Proceeding with observer setup anyway...')
+
+            # JavaScript code to set up MutationObserver for auctionrunningdiv-MACRO content changes
             observer_js = """
             (function() {
-                console.log('Setting up IAAI auction observer...');
+                console.log('Setting up auction content observer...');
 
-                // Initialize global observer storage
+                // Initialize global observer storage if not exists
                 if (!window.auctionObservers) {
                     window.auctionObservers = [];
                 }
@@ -677,7 +683,7 @@ class IAAIAuctionMonitor:
                 let lastStockNumber = null;
                 let mutationCount = 0;
 
-                // Function to extract current auction info
+                // Function to extract current bid, bidder, bid suggestion, and lot information
                 function getCurrentAuctionInfo() {
                     // Get current item
                     let currentItem = null;
@@ -698,13 +704,11 @@ class IAAIAuctionMonitor:
                         if (currentItem) break;
                     }
 
-                    // Get current bid
+                    // Get current bid (asking bid)
                     let currentBid = null;
                     const bidSelectors = [
-                        '.run-list__winning-bid-info',
-                        '.run-list__high-bid strong',
-                        '.current-bid',
-                        '.bid-amount'
+                        '.bid-area__amount[data-askingamount]',
+                        '.asking-bid'
                     ];
 
                     for (const selector of bidSelectors) {
@@ -745,10 +749,18 @@ class IAAIAuctionMonitor:
 
                     for (const selector of stockSelectors) {
                         const stockElems = document.querySelectorAll(selector);
-                        if (stockElem && stockElem.textContent && stockElem.textContent.trim()) {
-                            stockNumber = stockElem.textContent.trim();
-                            break;
+                        for (const stockElem of stockElems) {
+                            if (stockElem && stockElem.textContent && stockElem.textContent.trim()) {
+                                const stockText = stockElem.textContent.trim();
+                                // Extract just the number
+                                const match = stockText.match(/(\\d+)/);
+                                if (match) {
+                                    stockNumber = match[1];
+                                    break;
+                                }
+                            }
                         }
+                        if (stockNumber) break;
                     }
 
                     return {
@@ -760,20 +772,20 @@ class IAAIAuctionMonitor:
                     };
                 }
 
-                // Set up MutationObserver for the auction events container
+                // Set up MutationObserver for the auction div
                 const targetNode = document.querySelector('#auctionEvents') || document.body;
                 if (targetNode) {
-                    console.log('Found target node, setting up observer');
+                    console.log('Found #auctionEvents, setting up observer');
 
                     const observer = new MutationObserver(function(mutations) {
                         mutationCount++;
-                        console.log('IAAI AuctionNow mutation detected #' + mutationCount);
+                        console.log('Mutation detected #' + mutationCount);
 
                         const auctionInfo = getCurrentAuctionInfo();
                         if (auctionInfo && (auctionInfo.item || auctionInfo.bid || auctionInfo.status || auctionInfo.stockNumber)) {
-                            // Check if any auction data changed
+                            // Check if bid or bidder changed
                             if (auctionInfo.item !== lastItem || auctionInfo.bid !== lastBid || auctionInfo.status !== lastStatus || auctionInfo.stockNumber !== lastStockNumber) {
-                                console.log('IAAI_AUCTION_CHANGE:' + JSON.stringify(auctionInfo));
+                                console.log('BID_CHANGE:' + JSON.stringify(auctionInfo));
                                 lastItem = auctionInfo.item;
                                 lastBid = auctionInfo.bid;
                                 lastStatus = auctionInfo.status;
@@ -790,61 +802,91 @@ class IAAIAuctionMonitor:
                         attributeFilter: ['class', 'data-uname']
                     });
 
-                    // Store observer reference
+                    // Store observer reference for cleanup
                     window.auctionObservers.push(observer);
 
-                    console.log('IAAI AuctionNow observer set up successfully');
+                    console.log('Bid change observer set up successfully');
                 } else {
-                    console.log('Target node not found, observer not set up');
+                    console.log('#auctionEvents not found, observer not set up');
                 }
             })();"""
 
-            # Inject the JavaScript
+            # Inject the JavaScript into the page
             await self.page.evaluate(observer_js)
             print('Successfully injected JavaScript into IAAI page')
 
-            # Set up console message listener
+            # Set up console message listener to capture updates
             self.page.on('console', self._handle_console_message)
 
-            print('IAAI mutation observer setup complete')
+            print('Bid change observer setup complete')
+            logging.info('Bid change observer setup complete - monitoring for bid changes')
 
         except Exception as e:
-            print(f'Failed to set up IAAI mutation observer: {e}')
+            print(f'Failed to set up bid change observer: {e}')
 
     def _handle_console_message(self, msg):
-        """Handle console messages from the page"""
+        """Handle console messages from the page, including MutationObserver updates"""
         try:
             text = msg.text
-            if text.startswith('IAAI_AUCTION_CHANGE:'):
-                # Parse the auction change update
-                json_data = text[21:]
-                auction_data = json.loads(json_data)
+            if text.startswith('BID_CHANGE:'):
+                # Parse the bid change update
+                json_data = text[11:]  # Remove 'BID_CHANGE:' prefix
+                bid_data = json.loads(json_data)
 
-                # Update stored data
+                # Update stored lot information if it changed
+                if bid_data.get('item'):
+                    self.current_auction_data['current_item'] = bid_data.get('item', 'N/A')
+                if bid_data.get('stockNumber'):
+                    self.current_auction_data['stock_number'] = bid_data.get('stockNumber', 'N/A')
+
+                # Update current data
                 self.current_auction_data.update({
-                    'current_item': auction_data.get('item', 'N/A'),
-                    'asking_bid': auction_data.get('bid', 'N/A'),
-                    'bid_status': auction_data.get('status', 'N/A'),
-                    'stock_number': auction_data.get('stockNumber', 'N/A')
+                    'asking_bid': bid_data.get('bid', 'N/A'),
+                    'bid_status': bid_data.get('status', 'N/A')
                 })
                 self.last_update = datetime.now().isoformat()
 
-                print(f"IAAI auction update - Item: {auction_data.get('item', 'N/A')}, Bid: {auction_data.get('bid', 'N/A')}, Status: {auction_data.get('status', 'N/A')}")
+                print(f"Updated auction data - Item: {bid_data.get('item', 'N/A')}, Asking Bid: {bid_data.get('bid', 'N/A')}, Status: {bid_data.get('status', 'N/A')}")
 
-                # Emit WebSocket event
+                # Emit WebSocket event for bid change notification
                 if self.socketio:
                     try:
+                        # Emit the formatted message to display in web interface
+                        self.socketio.emit('bid_change_notification', {
+                            'message': f"🚨 BID CHANGE DETECTED: Item={bid_data.get('item', 'N/A')}, Asking Bid={bid_data.get('bid', 'N/A')}, Status={bid_data.get('status', 'N/A')} at {bid_data.get('timestamp', 'N/A')}",
+                            'type': 'bid_change',
+                            'timestamp': bid_data.get('timestamp', datetime.now().isoformat())
+                        })
+
+                        # Also emit regular auction update
                         self.socketio.emit('auction_update', {
                             'is_monitoring': self.is_monitoring,
                             'current_auction': self.current_auction_data,
                             'last_update': self.last_update,
-                            'content_change': True
+                            'content_change': True,
+                            'current_item': bid_data.get('item', 'N/A'),
+                            'stock_number': bid_data.get('stockNumber', 'N/A'),
+                            'asking_bid': bid_data.get('bid', 'N/A'),
+                            'bid_status': bid_data.get('status', 'N/A')
                         })
-                        print("IAAI WebSocket auction update emitted")
+                        print("WebSocket events emitted for bid change")
                     except Exception as e:
-                        print(f"Failed to emit IAAI WebSocket event: {e}")
+                        print(f"Failed to emit WebSocket event: {e}")
+
+            elif text.startswith('AUCTION_UPDATE:'):
+                # Parse the general auction data update (fallback)
+                json_data = text[15:]  # Remove 'AUCTION_UPDATE:' prefix
+                auction_data = json.loads(json_data)
+
+                # Update current data
+                self.current_auction_data.update(auction_data)
+                self.last_update = datetime.now().isoformat()
+
+                # Print update for debugging
+                print(f"Real-time update: Item={auction_data.get('current_item', 'N/A')}, Status={auction_data.get('bid_status', 'N/A')}")
 
         except Exception as e:
+            # Ignore non-auction-update console messages
             pass
 
     async def _highlight_bid_button_manual(self):
@@ -904,6 +946,81 @@ class IAAIAuctionMonitor:
         print("🔴 Manual IAAI plus button highlight requested")
         self._manual_plus_highlight_requested = True
         return True
+
+    async def find_bid_button(self, auction_url):
+        """Complete bid button finder functionality - simplified version"""
+        try:
+            print(f"🔍 Starting bid button finder for auction: {auction_url}")
+
+            # Load environment variables
+            self._load_env()
+
+            # Initialize browser if not already done
+            if not self.browser:
+                await self._init_browser()
+
+            # Login to IAAI if not already logged in
+            await self._login_to_iaai()
+
+            # Navigate to auction
+            if not auction_url.startswith('http'):
+                auction_url = f"https://www.iaai.com{auction_url}"
+
+            print('Going to auction URL...')
+            await self.page.goto(auction_url, timeout=60000)
+            print('Waiting for page load...')
+            await self.page.wait_for_load_state('load', timeout=30000)
+
+            print(f'Page title after navigation: {await self.page.title()}')
+            print(f'Current URL: {self.page.url}')
+
+            # Try to find bid button
+            button_selectors = [
+                'button[data-uname*="bid"]',
+                '.bid-button',
+                'button:has-text("Bid")',
+                'button[class*="bid"]'
+            ]
+
+            for selector in button_selectors:
+                try:
+                    button = self.page.locator(selector).first
+                    if await button.is_visible(timeout=5000):
+                        print(f"✅ Found bid button with selector: {selector}")
+
+                        # Highlight the button
+                        await button.evaluate("""
+                            (element) => {
+                                const originalStyles = {
+                                    backgroundColor: element.style.backgroundColor,
+                                    border: element.style.border,
+                                    color: element.style.color
+                                };
+
+                                element.style.setProperty('background-color', '#00ff00', 'important');
+                                element.style.setProperty('border', '3px solid #ff0000', 'important');
+                                element.style.setProperty('color', '#000000', 'important');
+
+                                setTimeout(() => {
+                                    element.style.setProperty('background-color', originalStyles.backgroundColor, 'important');
+                                    element.style.setProperty('border', originalStyles.border, 'important');
+                                    element.style.setProperty('color', originalStyles.color, 'important');
+                                }, 3000);
+                            }
+                        """)
+
+                        print("🎨 Bid button highlighted successfully")
+                        await asyncio.sleep(5)  # Keep browser open to see highlight
+                        return True
+                except:
+                    continue
+
+            print("❌ No bid button found")
+            return False
+
+        except Exception as e:
+            print(f"Bid button finder failed: {e}")
+            return False
 
     async def _highlight_plus_button_manual_impl(self):
         """Highlight the plus button"""
