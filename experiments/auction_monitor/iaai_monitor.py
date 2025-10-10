@@ -486,6 +486,44 @@ class IAAIAuctionMonitor:
         print('Waiting for page load...')
         await self.page.wait_for_load_state('load', timeout=30000)
 
+        # Wait for LeaveAuctionConfirmationModal to appear (up to 20 seconds)
+        modal_appeared = False
+        try:
+            await self.page.wait_for_selector('#LeaveAuctionConfirmationModal', timeout=20000)
+            modal_appeared = True
+            print("LeaveAuctionConfirmationModal appeared")
+        except:
+            try:
+                await self.page.wait_for_selector('.LeaveAuctionConfirmationModal', timeout=20000)
+                modal_appeared = True
+                print("LeaveAuctionConfirmationModal appeared (class selector)")
+            except:
+                print("LeaveAuctionConfirmationModal did not appear within 20 seconds")
+
+        if modal_appeared:
+            print("LeaveAuctionConfirmationModal detected, clicking OK...")
+
+            # Click OK button
+            ok_selectors = [
+                '#LeaveAuctionConfirmationOk',
+                'button[data-actionname="LeaveAuctionConfirmationOk"]',
+                '#LeaveAuctionConfirmationOkVCB',
+                '.modal__footer button[data-actionname="LeaveAuctionConfirmationOk"]'
+            ]
+
+            for ok_sel in ok_selectors:
+                try:
+                    ok_button = self.page.locator(ok_sel).first
+                    if await ok_button.is_visible(timeout=2000):
+                        print(f"Found OK button with selector: {ok_sel}")
+                        await ok_button.click()
+                        print("Clicked OK on LeaveAuctionConfirmationModal")
+                        await self.page.wait_for_timeout(3000)  # Wait for modal to close
+                        break
+                except Exception as e:
+                    print(f"Failed to click OK button with selector {ok_sel}: {e}")
+                    continue
+
         print(f'Page title after navigation: {await self.page.title()}')
         print(f'Current URL: {self.page.url}')
 
