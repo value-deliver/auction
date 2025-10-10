@@ -254,6 +254,21 @@ class WebsiteAutomationBot:
 
                 if login_successful:
                     print("Login successful!")
+
+                    # Handle IAAI-specific post-login redirect
+                    await page.wait_for_timeout(5000)
+                    print("Checking for Log In link to redirect to dashboard")
+                    links = page.locator('a[href="/Dashboard/Default"][aria-label="Log In"]')
+                    count = await links.count()
+                    for i in range(count):
+                        if await links.nth(i).is_visible():
+                            await links.nth(i).click()
+                            print(f"Clicked visible Log In link at index {i}")
+                            # Wait for redirect to Dashboard
+                            await page.wait_for_url("**/Dashboard/Default")
+                            print("Redirected to Dashboard")
+                            break
+
                     # Save session state for future use
                     await self.context.storage_state(path=self.state_file)
                     print(f"Session state saved to {self.state_file}")
